@@ -22,6 +22,8 @@ require (
 	github.com/shogo82148/androidbinary v1.0.6
 	github.com/slack-go/slack v0.30.1
 	github.com/spf13/cobra v1.10.2
+	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
+	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
 	golang.org/x/image v0.47.0
 	golang.org/x/sync v0.24.0
 )

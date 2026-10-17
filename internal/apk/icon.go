@@ -3,7 +3,6 @@ package apk
 import (
 	"archive/zip"
 	"bytes"
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"image"
@@ -103,7 +102,7 @@ func extractIcon(file string, app androidapk.Application) (icon []byte) {
 		case isBitmap(p):
 			img, err = r.bitmap(p)
 		case strings.HasSuffix(p, ".xml"):
-			img, err = r.adaptive(p, cfg)
+			img, err = r.drawable(p, cfg, true)
 		default:
 			continue
 		}
@@ -152,17 +151,7 @@ func (r *iconReader) bitmap(name string) (image.Image, error) {
 	return decodeImage(raw)
 }
 
-type adaptiveIcon struct {
-	XMLName    xml.Name      `xml:"adaptive-icon"`
-	Background adaptiveLayer `xml:"background"`
-	Foreground adaptiveLayer `xml:"foreground"`
-}
-
-type adaptiveLayer struct {
-	Drawable string `xml:"http://schemas.android.com/apk/res/android drawable,attr"`
-}
-
-func (r *iconReader) adaptive(name string, cfg *androidbinary.ResTableConfig) (image.Image, error) {
+func (r *iconReader) drawable(name string, cfg *androidbinary.ResTableConfig, top bool) (image.Image, error) {
 	raw, err := r.read(name, maxXMLBytes)
 	if err != nil {
 		return nil, err
@@ -171,8 +160,8 @@ func (r *iconReader) adaptive(name string, cfg *androidbinary.ResTableConfig) (i
 	if err != nil {
 		return nil, err
 	}
-	var icon adaptiveIcon
-	if err := xml.NewDecoder(doc.Reader()).Decode(&icon); err != nil {
+	root, err := parseXML(doc.Reader())
+	if err != nil {
 		return nil, err
 	}
 	if r.table == nil {
@@ -184,14 +173,30 @@ func (r *iconReader) adaptive(name string, cfg *androidbinary.ResTableConfig) (i
 			return nil, err
 		}
 	}
+	switch {
+	case root.Name == "adaptive-icon" && top:
+		return r.adaptive(root, cfg)
+	case root.Name == "vector":
+		return r.vector(root, cfg)
+	}
+	return nil, fmt.Errorf("unsupported drawable <%s>", root.Name)
+}
 
-	fg, ok := r.layer(icon.Foreground.Drawable, cfg).(image.Image)
+func (r *iconReader) adaptive(icon xmlNode, cfg *androidbinary.ResTableConfig) (image.Image, error) {
+	layer := func(name string) any {
+		n, ok := icon.child(name)
+		if !ok {
+			return nil
+		}
+		return r.layer(n.attr("drawable"), cfg)
+	}
+	fg, ok := layer("foreground").(image.Image)
 	if !ok {
-		return nil, errors.New("adaptive icon foreground is not a bitmap")
+		return nil, errors.New("adaptive icon foreground is neither a bitmap nor a vector")
 	}
 	const side = 4 * 108
 	canvas := image.NewNRGBA(image.Rect(0, 0, side, side))
-	switch bg := r.layer(icon.Background.Drawable, cfg).(type) {
+	switch bg := layer("background").(type) {
 	case color.Color:
 		draw.Draw(canvas, canvas.Bounds(), image.NewUniform(bg), image.Point{}, draw.Src)
 	case image.Image:
@@ -216,10 +221,16 @@ func (r *iconReader) layer(ref string, cfg *androidbinary.ResTableConfig) any {
 		}
 		switch v := v.(type) {
 		case string:
-			if !isBitmap(v) {
+			var img image.Image
+			var err error
+			switch {
+			case isBitmap(v):
+				img, err = r.bitmap(v)
+			case strings.HasSuffix(v, ".xml"):
+				img, err = r.drawable(v, cfg, false)
+			default:
 				return nil
 			}
-			img, err := r.bitmap(v)
 			if err != nil {
 				return nil
 			}

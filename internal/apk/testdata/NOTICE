@@ -1,1 +1,2 @@
 helloworld.apk is copied from github.com/shogo82148/androidbinary (MIT License, Copyright (c) 2014 Ichinose Shogo).
+vectoricon.apk is built with aapt2 from the launcher icon of github.com/kriakiku/holtdroid-webview (Apache-2.0); it has no code.

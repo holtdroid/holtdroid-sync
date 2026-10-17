@@ -10,6 +10,8 @@ import (
 	androidapk "github.com/shogo82148/androidbinary/apk"
 )
 
+const ParserVersion = 2
+
 type Metadata struct {
 	Package     string   `json:"package"`
 	VersionName string   `json:"versionName,omitempty"`

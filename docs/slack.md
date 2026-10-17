@@ -25,7 +25,9 @@ untrusted input:
 - decoded with Go's memory-safe PNG/JPEG/WebP decoders;
 - re-rendered as a 256 × 256 PNG.
 
-The icon is optional. If the APK only has a vector icon, none is written.
+The icon is optional. Bitmap and vector-drawable icons are rendered, adaptive
+ones composed from their layers; if nothing can be rendered (an animated or
+gradient-only icon), none is written.
 
 The sidecar follows Holtdroid's `Meta` (`design/contracts.md`, "Artifact
 sources"), is written before the APK, and carries:

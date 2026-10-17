@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"strings"
 	"testing"
 )
 
@@ -59,15 +60,104 @@ func TestNormalizeIcon(t *testing.T) {
 }
 
 func TestParseIcon(t *testing.T) {
-	_, icon, err := Parse("testdata/helloworld.apk")
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		apk    string
+		pixels map[image.Point]color.NRGBA
+	}{
+		{apk: "helloworld.apk"},
+		{
+			apk: "vectoricon.apk",
+			pixels: map[image.Point]color.NRGBA{
+				{4, 4}:     {0xff, 0xf3, 0xe6, 0xff},
+				{128, 120}: {0x8a, 0x5a, 0x3c, 0xff},
+				{87, 69}:   {0x3d, 0xdc, 0x84, 0xff},
+			},
+		},
 	}
-	img, err := png.Decode(bytes.NewReader(icon))
-	if err != nil {
-		t.Fatalf("icon is not a png: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.apk, func(t *testing.T) {
+			_, icon, err := Parse("testdata/" + tt.apk)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if icon == nil {
+				t.Fatal("no icon")
+			}
+			img, err := png.Decode(bytes.NewReader(icon))
+			if err != nil {
+				t.Fatalf("icon is not a png: %v", err)
+			}
+			if b := img.Bounds(); b.Dx() != IconSize || b.Dy() != IconSize {
+				t.Fatalf("icon size %v", b)
+			}
+			for p, want := range tt.pixels {
+				if got := color.NRGBAModel.Convert(img.At(p.X, p.Y)).(color.NRGBA); !near(got, want) {
+					t.Errorf("pixel %v = %v, want %v", p, got, want)
+				}
+			}
+		})
 	}
-	if b := img.Bounds(); b.Dx() != IconSize || b.Dy() != IconSize {
-		t.Fatalf("icon size %v", b)
+}
+
+func near(a, b color.NRGBA) bool {
+	d := func(x, y uint8) bool { return x-y < 12 || y-x < 12 }
+	return d(a.R, b.R) && d(a.G, b.G) && d(a.B, b.B) && d(a.A, b.A)
+}
+
+func TestVector(t *testing.T) {
+	const ns = `xmlns:android="http://schemas.android.com/apk/res/android"`
+	red := color.NRGBA{0xff, 0, 0, 0xff}
+	clear := color.NRGBA{}
+	tests := []struct {
+		name   string
+		xml    string
+		pixels map[image.Point]color.NRGBA
+		ok     bool
+	}{
+		{
+			name:   "fill",
+			xml:    `<vector ` + ns + ` android:viewportWidth="10" android:viewportHeight="10"><path android:fillColor="#f00" android:pathData="M0,0h5v10h-5z"/></vector>`,
+			pixels: map[image.Point]color.NRGBA{{100, 200}: red, {300, 200}: clear},
+			ok:     true,
+		},
+		{
+			name: "group transform",
+			xml: `<vector ` + ns + ` android:viewportWidth="10" android:viewportHeight="10"><group android:translateX="5">` +
+				`<path android:fillColor="#ffff0000" android:pathData="M0,0h5v10h-5z"/></group></vector>`,
+			pixels: map[image.Point]color.NRGBA{{100, 200}: clear, {300, 200}: red},
+			ok:     true,
+		},
+		{
+			name: "round stroke",
+			xml: `<vector ` + ns + ` android:viewportWidth="10" android:viewportHeight="10">` +
+				`<path android:strokeColor="#f00" android:strokeWidth="2" android:strokeLineCap="round" android:pathData="M2,5H8"/></vector>`,
+			pixels: map[image.Point]color.NRGBA{{216, 216}: red, {216, 50}: clear},
+			ok:     true,
+		},
+		{
+			name: "even-odd hole",
+			xml: `<vector ` + ns + ` android:viewportWidth="10" android:viewportHeight="10">` +
+				`<path android:fillColor="#f00" android:fillType="evenOdd" android:pathData="M0,0h10v10h-10zM3,3h4v4h-4z"/></vector>`,
+			pixels: map[image.Point]color.NRGBA{{20, 20}: red, {216, 216}: clear},
+			ok:     true,
+		},
+		{name: "no viewport", xml: `<vector ` + ns + `><path android:fillColor="#f00" android:pathData="M0,0h5v5z"/></vector>`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root, err := parseXML(strings.NewReader(tt.xml))
+			if err != nil {
+				t.Fatal(err)
+			}
+			img, err := (&iconReader{}).vector(root, nil)
+			if (err == nil) != tt.ok {
+				t.Fatalf("err = %v", err)
+			}
+			for p, want := range tt.pixels {
+				if got := color.NRGBAModel.Convert(img.At(p.X, p.Y)).(color.NRGBA); !near(got, want) {
+					t.Errorf("pixel %v = %v, want %v", p, got, want)
+				}
+			}
+		})
 	}
 }
