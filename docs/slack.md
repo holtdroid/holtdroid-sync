@@ -55,28 +55,18 @@ threads cost nothing. Limitations of polling:
 - editing a reply that was already synced doesn't refresh its sidecar until
   the thread gets a new reply.
 
-### Reactions and replies
+### New build announcements
 
-Both are off by default.
+`notify` posts one message per pass that copied anything, through
+[shoutrrr](https://github.com/nicholas-fedor/shoutrrr), the same way as the
+other jobs (see the [README](../README.md)). For each new build it lists the
+name, version and package, the key and size, **Quick launch** and **Launch**
+links into the portal when `portalURL` is set, and a link to the Slack
+message. Builds whose message is older than `maxAge` are not announced, so
+the first pass over `lookback` stays quiet.
 
-- `slack.react` adds a reaction to the message once its APKs are in the
-  target. It doubles as a marker: a message the bot already reacted to gets
-  no new reaction or reply, even if the target was emptied and the build is
-  copied again. Bots can use any custom emoji of the workspace but can't
-  create one: upload [`assets/holtdroid-emoji.png`](../assets/holtdroid-emoji.png)
-  as `:holtdroid:` (Customize workspace → Emoji), or pick a stock one such as
-  `white_check_mark`.
-- `slack.reply` answers in the message's thread with a Block Kit card. The
-  card shows the app label, package name, version name and code, file name,
-  size, min/target SDK and native ABIs. When `portalURL` is set it also has
-  two link buttons:
-  - **Quick launch**, `{portalURL}/?source={source}&launch={artifact ID}&quick=1`,
-    starts a device right away with the user's last provider and location;
-  - **Launch…** (the same link without `quick`) opens the launch dialog.
-
-  The artifact ID is the base64url of the key, as in Holtdroid's UI API, and
-  `source` is the name of the Holtdroid source that points at this target.
-  The buttons are plain links, so the app needs no interactivity endpoint.
+To post into the same Slack channel, use the bot token in a shoutrrr URL:
+`slack://xoxb:<token without the xoxb- prefix>@<channel ID>`.
 
 ## Slack app
 
@@ -85,7 +75,7 @@ App** → **From a manifest** → pick the workspace → paste
 [`slack-app-manifest.yaml`](../slack-app-manifest.yaml) → **Create** →
 **Install to Workspace**. Copy the **Bot User OAuth Token** (`xoxb-…`) from
 **OAuth & Permissions**. Optionally set the app icon in **Basic Information**
-from [`assets/holtdroid-emoji.png`](../assets/holtdroid-emoji.png); manifests
+from [`assets/holtdroid-icon.png`](../assets/holtdroid-icon.png); manifests
 can't carry icons.
 
 The manifest requests these bot scopes:
@@ -93,10 +83,10 @@ The manifest requests these bot scopes:
 - `channels:history` (public channels) and `groups:history` (private ones);
 - `files:read`;
 - `users:read`: names of uploaders and mentions; without it they show as user IDs;
-- `reactions:write`, for `slack.react`;
-- `chat:write`, for `slack.reply`.
+- `chat:write`, for announcements through a `slack://` shoutrrr URL.
 
-Drop the last three from the manifest if you don't use those features.
+Drop `users:read` and `chat:write` from the manifest if you don't need
+names or announce elsewhere.
 
 Invite the bot into every channel (`/invite @Holtdroid`). Channels are
 configured by ID, not by name: open the channel details, and the ID is at
@@ -119,13 +109,6 @@ slack:
   threads: true                # also look into thread replies
   lookback: 168h               # how far back each poll reads history
   retention: 0s                # > lookback: delete synced builds older than this; 0 keeps them
-  react:
-    enabled: false
-    emoji: holtdroid           # custom or stock emoji name, colons optional
-  reply:
-    enabled: false
-    portalURL: ""              # e.g. https://holtdroid.example.com; empty: no launch link
-    source: slack              # Holtdroid source name for the launch link
 target:                        # where to write; same shape as Holtdroid's storage
   type: filesystem             # filesystem | s3
   filesystem:
@@ -139,6 +122,11 @@ target:                        # where to write; same shape as Holtdroid's stora
     secretKey: env:S3_SECRET_KEY
     pathStyle: false
 interval: 1m                   # poll period
+notify:                        # announce new builds; empty urls = off
+  urls: [env:NOTIFY_URL]       # shoutrrr URLs (secret references)
+  portalURL: ""                # e.g. https://holtdroid.example.com; adds Quick launch / Launch links
+  source: slack                # the Holtdroid source that lists the target
+  maxAge: 24h                  # builds posted earlier are not announced; 0 = all
 secrets:
   openbao:                     # only needed for openbao: references
     address: https://bao.example.com

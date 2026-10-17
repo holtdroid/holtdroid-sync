@@ -13,6 +13,7 @@ import (
 
 	"github.com/kriakiku/holtdroid-sync/internal/apk"
 	"github.com/kriakiku/holtdroid-sync/internal/layout"
+	"github.com/kriakiku/holtdroid-sync/internal/secrets"
 )
 
 func webhook(t *testing.T) (string, func() []string) {
@@ -105,5 +106,32 @@ func TestAnnounceBuilds(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+		ok   bool
+	}{
+		{"empty", Config{}, true},
+		{"portal", Config{PortalURL: "https://hd.example", MaxAge: time.Hour}, true},
+		{"portal without host", Config{PortalURL: "holtdroid"}, false},
+		{"negative max age", Config{MaxAge: -time.Second}, false},
+	}
+	for _, tt := range tests {
+		if err := tt.cfg.Validate(); (err == nil) != tt.ok {
+			t.Errorf("%s: Validate() = %v", tt.name, err)
+		}
+	}
+
+	off, err := FromConfig(context.Background(), secrets.NewRegistry(), Config{}, "x")
+	if err != nil || off == nil {
+		t.Fatalf("no URLs must give a no-op: %v", err)
+	}
+	off(context.Background(), []layout.Build{{Key: "a.apk", Modified: time.Now()}})
+	if _, err := FromConfig(context.Background(), secrets.NewRegistry(), Config{URLs: []secrets.Ref{"env:HOLTDROID_SYNC_TEST_UNSET"}}, "x"); err == nil {
+		t.Fatal("an unresolvable URL must fail")
 	}
 }

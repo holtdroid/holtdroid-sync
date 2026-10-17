@@ -13,7 +13,6 @@ import (
 	"github.com/kriakiku/holtdroid-sync/internal/announce"
 	"github.com/kriakiku/holtdroid-sync/internal/config"
 	"github.com/kriakiku/holtdroid-sync/internal/githubsync"
-	"github.com/kriakiku/holtdroid-sync/internal/layout"
 	"github.com/kriakiku/holtdroid-sync/internal/rules"
 	"github.com/kriakiku/holtdroid-sync/internal/run"
 	"github.com/kriakiku/holtdroid-sync/internal/secrets"
@@ -29,13 +28,6 @@ type RepoConfig struct {
 	Releases    int
 }
 
-type NotifyConfig struct {
-	URLs      []secrets.Ref
-	PortalURL string
-	Source    string
-	MaxAge    time.Duration
-}
-
 type Config struct {
 	GitHub struct {
 		Token secrets.Ref
@@ -44,7 +36,7 @@ type Config struct {
 	Interval time.Duration
 	Prune    bool
 	Target   storage.Config
-	Notify   NotifyConfig
+	Notify   announce.Config
 	Secrets  struct {
 		OpenBao secrets.OpenBaoConfig
 	}
@@ -55,7 +47,7 @@ func defaults() Config {
 		Interval: 15 * time.Minute,
 		Prune:    true,
 		Target:   storage.Config{Type: "filesystem"},
-		Notify:   NotifyConfig{Source: "github", MaxAge: 24 * time.Hour},
+		Notify:   announce.Config{Source: "github", MaxAge: 24 * time.Hour},
 	}
 }
 
@@ -82,8 +74,8 @@ func (c Config) Validate() error {
 	if c.Interval <= 0 {
 		errs = append(errs, errors.New("interval must be positive"))
 	}
-	if c.Notify.MaxAge < 0 {
-		errs = append(errs, errors.New("notify.maxAge must not be negative"))
+	if err := c.Notify.Validate(); err != nil {
+		errs = append(errs, fmt.Errorf("notify.%w", err))
 	}
 	return errors.Join(errs...)
 }
@@ -139,7 +131,7 @@ func runJob(ctx context.Context, configPath string, once bool) error {
 		st.Log(ctx)
 		return err
 	}
-	announce, err := announcerFor(ctx, cfg, reg)
+	notify, err := announce.FromConfig(ctx, reg, cfg.Notify, "GitHub releases")
 	if err != nil {
 		return err
 	}
@@ -148,7 +140,7 @@ func runJob(ctx context.Context, configPath string, once bool) error {
 		if err != nil && ctx.Err() == nil {
 			slog.Error("sync failed", "err", err)
 		}
-		announce(ctx, st.Builds)
+		notify(ctx, st.Builds)
 		st.Log(ctx)
 	})
 	return nil
@@ -174,24 +166,4 @@ func repos(cfg Config) []githubsync.Repo {
 		out = append(out, githubsync.Repo{Owner: owner, Name: name, Rules: include, Prereleases: r.Prereleases, Releases: r.Releases})
 	}
 	return out
-}
-
-func announcerFor(ctx context.Context, cfg Config, reg *secrets.Registry) (func(context.Context, []layout.Build), error) {
-	nb := cfg.Notify
-	if len(nb.URLs) == 0 {
-		return func(context.Context, []layout.Build) {}, nil
-	}
-	urls := make([]string, 0, len(nb.URLs))
-	for _, ref := range nb.URLs {
-		v, err := reg.Resolve(ctx, ref)
-		if err != nil {
-			return nil, fmt.Errorf("notify.urls: %w", err)
-		}
-		urls = append(urls, v)
-	}
-	n, err := announce.New(urls, nb.PortalURL, nb.Source, "GitHub releases", nb.MaxAge)
-	if err != nil {
-		return nil, err
-	}
-	return n.Announce, nil
 }

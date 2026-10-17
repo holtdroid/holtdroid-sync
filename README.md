@@ -12,7 +12,7 @@ x.apk.icon.png    # the launcher icon re-rendered at 256 px, when there is one
 
 | Job                     | Brings builds from                                                       | Docs                                 |
 | ----------------------- | ------------------------------------------------------------------------ | ------------------------------------ |
-| `holtdroid-slack-sync`  | Slack channels: messages, threads and forwards; reacts and replies with launch buttons | [docs/slack.md](docs/slack.md)   |
+| `holtdroid-slack-sync`  | Slack channels: messages, threads and forwards | [docs/slack.md](docs/slack.md)   |
 | `holtdroid-s3-sync`     | an S3 bucket, with AWS IAM Identity Center logins; or brokers credentials so Holtdroid reads it directly | [docs/s3.md](docs/s3.md) |
 | `holtdroid-github-sync` | assets of GitHub releases                                                | [docs/github.md](docs/github.md)     |
 

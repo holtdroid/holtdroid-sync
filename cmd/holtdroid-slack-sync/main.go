@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/kriakiku/holtdroid-sync/internal/announce"
 	"github.com/kriakiku/holtdroid-sync/internal/config"
 	"github.com/kriakiku/holtdroid-sync/internal/run"
 	"github.com/kriakiku/holtdroid-sync/internal/secrets"
@@ -19,6 +20,7 @@ type Config struct {
 	Slack    slacksync.Config
 	Target   storage.Config
 	Interval time.Duration
+	Notify   announce.Config
 	Secrets  struct {
 		OpenBao secrets.OpenBaoConfig
 	}
@@ -37,12 +39,18 @@ func main() {
 }
 
 func loadConfig(path string) (Config, error) {
-	cfg := Config{Slack: slacksync.DefaultConfig(), Target: storage.Config{Type: "filesystem"}, Interval: time.Minute}
+	cfg := Config{
+		Slack: slacksync.DefaultConfig(), Target: storage.Config{Type: "filesystem"}, Interval: time.Minute,
+		Notify: announce.Config{Source: "slack", MaxAge: 24 * time.Hour},
+	}
 	if err := config.Load(envPrefix, path, cfg, &cfg); err != nil {
 		return cfg, err
 	}
 	if err := cfg.Slack.Validate(); err != nil {
 		return cfg, err
+	}
+	if err := cfg.Notify.Validate(); err != nil {
+		return cfg, fmt.Errorf("notify.%w", err)
 	}
 	if cfg.Interval <= 0 {
 		return cfg, fmt.Errorf("interval must be positive, got %s", cfg.Interval)
@@ -69,15 +77,24 @@ func runJob(ctx context.Context, configPath string, once bool) error {
 		return err
 	}
 
+	notify, err := announce.FromConfig(ctx, reg, cfg.Notify, "Slack")
+	if err != nil {
+		return fmt.Errorf("notify.urls: %w", err)
+	}
+
 	s := slacksync.New(cfg.Slack, token, store, nil)
 	slog.Info("starting", "version", version, "channels", cfg.Slack.Channels, "target", cfg.Target.Type, "once", once)
 	if once {
-		return s.Sync(ctx)
+		st, err := s.Sync(ctx)
+		notify(ctx, st.Builds)
+		return err
 	}
 	run.Every(ctx, cfg.Interval, func(ctx context.Context) {
-		if err := s.Sync(ctx); err != nil && ctx.Err() == nil {
+		st, err := s.Sync(ctx)
+		if err != nil && ctx.Err() == nil {
 			slog.Error("sync failed", "err", err)
 		}
+		notify(ctx, st.Builds)
 	})
 	return nil
 }

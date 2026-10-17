@@ -19,7 +19,6 @@ import (
 
 	"github.com/slack-go/slack"
 
-	"github.com/kriakiku/holtdroid-sync/internal/apk"
 	"github.com/kriakiku/holtdroid-sync/internal/layout"
 	"github.com/kriakiku/holtdroid-sync/internal/secrets"
 	"github.com/kriakiku/holtdroid-sync/internal/storage"
@@ -32,19 +31,6 @@ type Config struct {
 	Lookback  time.Duration
 	Retention time.Duration
 	APIURL    string
-	React     ReactConfig
-	Reply     ReplyConfig
-}
-
-type ReactConfig struct {
-	Enabled bool
-	Emoji   string
-}
-
-type ReplyConfig struct {
-	Enabled   bool
-	PortalURL string
-	Source    string
 }
 
 func DefaultConfig() Config {
@@ -53,8 +39,6 @@ func DefaultConfig() Config {
 		Threads:  true,
 		Lookback: 7 * 24 * time.Hour,
 		APIURL:   slack.APIURL,
-		React:    ReactConfig{Emoji: "holtdroid"},
-		Reply:    ReplyConfig{Source: "slack"},
 	}
 }
 
@@ -75,14 +59,6 @@ func (c Config) Validate() error {
 	if c.Retention > 0 && c.Retention <= c.Lookback {
 		return errors.New("slack.retention must be longer than slack.lookback, or pruned builds are downloaded again")
 	}
-	if c.React.Enabled && strings.Trim(c.React.Emoji, ":") == "" {
-		return errors.New("slack.react.emoji is required when reactions are enabled")
-	}
-	if c.Reply.PortalURL != "" {
-		if u, err := url.Parse(c.Reply.PortalURL); err != nil || u.Host == "" {
-			return fmt.Errorf("slack.reply.portalURL must be a URL like https://holtdroid.example.com: %q", c.Reply.PortalURL)
-		}
-	}
 	return nil
 }
 
@@ -96,7 +72,6 @@ type Syncer struct {
 	now   func() time.Time
 
 	team    string
-	botID   string
 	users   map[string]string
 	threads map[string]string
 }
@@ -106,7 +81,6 @@ func New(cfg Config, token string, store storage.Store, client *http.Client) *Sy
 		client = http.DefaultClient
 	}
 	cfg.APIURL = strings.TrimRight(cfg.APIURL, "/") + "/"
-	cfg.React.Emoji = strings.Trim(cfg.React.Emoji, ":")
 	return &Syncer{
 		cfg:     cfg,
 		token:   token,
@@ -122,21 +96,24 @@ func New(cfg Config, token string, store storage.Store, client *http.Client) *Sy
 
 type stats struct {
 	added, updated, pruned int
+	builds                 []layout.Build
 }
 
 func (a *stats) add(b stats) {
 	a.added += b.added
 	a.updated += b.updated
 	a.pruned += b.pruned
+	a.builds = append(a.builds, b.builds...)
 }
 
-func (s *Syncer) Sync(ctx context.Context) error {
+func (s *Syncer) Sync(ctx context.Context) (layout.Stats, error) {
+	var total layout.Stats
 	if s.team == "" {
 		auth, err := retry(ctx, s.log, func() (*slack.AuthTestResponse, error) { return s.api.AuthTestContext(ctx) })
 		if err != nil {
-			return fmt.Errorf("auth.test: %w", err)
+			return total, fmt.Errorf("auth.test: %w", err)
 		}
-		s.team, s.botID = auth.URL, auth.UserID
+		s.team = auth.URL
 	}
 	var errs []error
 	for _, ch := range s.cfg.Channels {
@@ -145,12 +122,15 @@ func (s *Syncer) Sync(ctx context.Context) error {
 			errs = append(errs, fmt.Errorf("channel %s: %w", ch, err))
 		}
 		level := slog.LevelDebug
-		if st != (stats{}) {
+		if st.added+st.updated+st.pruned > 0 {
 			level = slog.LevelInfo
 		}
 		s.log.Log(ctx, level, "channel synced", "channel", ch, "added", st.added, "updated", st.updated, "pruned", st.pruned)
+		total.Copied += st.added
+		total.Pruned += st.pruned
+		total.Builds = append(total.Builds, st.builds...)
 	}
-	return errors.Join(errs...)
+	return total, errors.Join(errs...)
 }
 
 type channelRun struct {
@@ -265,7 +245,6 @@ func (s *Syncer) syncMessages(ctx context.Context, run *channelRun, msgs []messa
 	var errs []error
 	for _, m := range msgs {
 		for _, p := range posts(m) {
-			var fresh []build
 			for _, f := range p.files {
 				if run.seen[f.ID] {
 					continue
@@ -279,13 +258,10 @@ func (s *Syncer) syncMessages(ctx context.Context, run *channelRun, msgs []messa
 				switch changed {
 				case added:
 					st.added++
-					fresh = append(fresh, b)
+					st.builds = append(st.builds, b)
 				case updated:
 					st.updated++
 				}
-			}
-			if len(fresh) > 0 {
-				s.announce(ctx, run.ch, p.msg, fresh)
 			}
 		}
 	}
@@ -300,61 +276,55 @@ const (
 	updated
 )
 
-type build struct {
-	key  string
-	name string
-	size int64
-	app  *apk.Metadata
-}
-
-func (s *Syncer) syncFile(ctx context.Context, run *channelRun, p post, f slack.File) (change, build, error) {
+func (s *Syncer) syncFile(ctx context.Context, run *channelRun, p post, f slack.File) (change, layout.Build, error) {
 	if f.Mode == "tombstone" || f.Mode == "hidden_by_limit" || f.IsExternal {
-		return unchanged, build{}, nil
+		return unchanged, layout.Build{}, nil
 	}
 	if key, ok := run.synced[f.ID]; ok {
 		if p.msg.Edited == nil {
-			return unchanged, build{}, nil
+			return unchanged, layout.Build{}, nil
 		}
 		changed, err := s.refreshMeta(ctx, run.ch, p, f, key)
-		return changed, build{}, err
+		return changed, layout.Build{}, err
 	}
 
 	if f.Name == "" || f.URLPrivateDownload == "" {
 		full, _, _, err := s.api.GetFileInfoContext(ctx, f.ID, 0, 0)
 		if err != nil {
-			return unchanged, build{}, fmt.Errorf("files.info: %w", err)
+			return unchanged, layout.Build{}, fmt.Errorf("files.info: %w", err)
 		}
 		f = *full
 	}
 	if !layout.IsAPK(f.Name) {
-		return unchanged, build{}, nil
+		return unchanged, layout.Build{}, nil
 	}
 
 	key := run.ch + "/" + f.ID + "/" + safeName(f.Name)
 	b, err := s.copyFile(ctx, run.ch, p, f, key)
 	if err != nil {
-		return unchanged, build{}, err
+		return unchanged, layout.Build{}, err
 	}
 	run.synced[f.ID] = key
-	s.log.Info("synced", "channel", run.ch, "file", f.ID, "key", key, "size", b.size)
+	s.log.Info("synced", "channel", run.ch, "file", f.ID, "key", key, "size", b.Size)
 	return added, b, nil
 }
 
-func (s *Syncer) copyFile(ctx context.Context, ch string, p post, f slack.File, key string) (build, error) {
+func (s *Syncer) copyFile(ctx context.Context, ch string, p post, f slack.File, key string) (layout.Build, error) {
 	body, err := s.open(ctx, f)
 	if err != nil {
-		return build{}, err
+		return layout.Build{}, err
 	}
 	staged, err := layout.Stage(body, -1)
 	_ = body.Close()
 	if err != nil {
-		return build{}, err
+		return layout.Build{}, err
 	}
 	defer staged.Close()
-	if err := staged.Publish(ctx, s.store, key, s.meta(ctx, ch, p, f)); err != nil {
-		return build{}, err
+	meta := s.meta(ctx, ch, p, f)
+	if err := staged.Publish(ctx, s.store, key, meta); err != nil {
+		return layout.Build{}, err
 	}
-	return build{key: key, name: f.Name, size: staged.Size, app: staged.App}, nil
+	return layout.Build{Key: key, Size: staged.Size, Modified: meta.UploadedAt, Link: meta.Link, App: staged.App}, nil
 }
 
 func (s *Syncer) refreshMeta(ctx context.Context, ch string, p post, f slack.File, key string) (change, error) {

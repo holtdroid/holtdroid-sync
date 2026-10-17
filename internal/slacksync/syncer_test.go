@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -44,7 +43,6 @@ type fakeSlack struct {
 	downloads   int
 	rateLimited int
 	calls       []string
-	posted      []url.Values
 }
 
 func newFakeSlack(t *testing.T) *fakeSlack {
@@ -104,9 +102,6 @@ func (f *fakeSlack) api(w http.ResponseWriter, r *http.Request) {
 		resp = map[string]any{"user": map[string]any{"id": r.FormValue("user"), "name": strings.ToLower(name), "profile": map[string]any{"display_name": name}}}
 	case "auth.test":
 		resp = map[string]any{"url": "https://acme.slack.com/", "user_id": "UBOT"}
-	case "reactions.add", "chat.postMessage":
-		f.posted = append(f.posted, url.Values{"method": {method}, "channel": {r.FormValue("channel")}, "ts": {r.FormValue("timestamp")}, "name": {r.FormValue("name")}, "thread_ts": {r.FormValue("thread_ts")}, "text": {r.FormValue("text")}, "blocks": {r.FormValue("blocks")}})
-		resp = map[string]any{"channel": r.FormValue("channel"), "ts": "1.0"}
 	default:
 		f.t.Errorf("unexpected call %s", method)
 	}
@@ -208,7 +203,7 @@ func TestSyncCopiesAPKsWithMeta(t *testing.T) {
 	f.files["F4"]["title"] = "Nightly build"
 
 	s, store := newSyncer(t, f, nil)
-	if err := s.Sync(context.Background()); err != nil {
+	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -243,7 +238,7 @@ func TestSyncCopiesAPKsWithMeta(t *testing.T) {
 		t.Fatalf("bot meta %+v", m)
 	}
 
-	if err := s.Sync(context.Background()); err != nil {
+	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if f.downloads != 2 {
@@ -262,7 +257,7 @@ func TestSyncThreads(t *testing.T) {
 				{"ts": ts(now.Add(-time.Hour)), "thread_ts": parent, "user": "U1", "text": "rc1", "files": []any{f.file("F1", "rc1.apk")}},
 			}
 			s, store := newSyncer(t, f, func(c *Config) { c.Threads = threads })
-			if err := s.Sync(context.Background()); err != nil {
+			if _, err := s.Sync(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			got := keys(t, store)
@@ -287,13 +282,13 @@ func TestSyncEditedMessageRefreshesMeta(t *testing.T) {
 	msg := map[string]any{"ts": ts(now.Add(-time.Hour)), "user": "U1", "text": "v1", "files": []any{f.file("F1", "app.apk")}}
 	f.history["C1"] = []map[string]any{msg}
 	s, store := newSyncer(t, f, nil)
-	if err := s.Sync(context.Background()); err != nil {
+	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
 	msg["text"] = "v1 with changelog"
 	msg["edited"] = map[string]any{"user": "U1", "ts": ts(now)}
-	if err := s.Sync(context.Background()); err != nil {
+	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if m := readMeta(t, store, "C1/F1/app.apk"); m.Changelog != "v1 with changelog" {
@@ -311,7 +306,7 @@ func TestSyncRejectsNonAPKDownloads(t *testing.T) {
 	f.history["C1"] = []map[string]any{{"ts": ts(now.Add(-time.Hour)), "user": "U1", "files": []any{file}}}
 
 	s, store := newSyncer(t, f, nil)
-	if err := s.Sync(context.Background()); err == nil || !strings.Contains(err.Error(), "not an APK") {
+	if _, err := s.Sync(context.Background()); err == nil || !strings.Contains(err.Error(), "not an APK") {
 		t.Fatalf("err = %v", err)
 	}
 	if got := keys(t, store); slices.Contains(got, "C1/F1/app.apk") {
@@ -326,7 +321,7 @@ func TestSyncRefusesForeignFileHosts(t *testing.T) {
 	f.history["C1"] = []map[string]any{{"ts": ts(now.Add(-time.Hour)), "user": "U1", "files": []any{file}}}
 
 	s, _ := newSyncer(t, f, nil)
-	if err := s.Sync(context.Background()); err == nil || !strings.Contains(err.Error(), "refusing") {
+	if _, err := s.Sync(context.Background()); err == nil || !strings.Contains(err.Error(), "refusing") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -336,7 +331,7 @@ func TestSyncRetriesRateLimits(t *testing.T) {
 	f.history["C1"] = []map[string]any{{"ts": ts(now.Add(-time.Hour)), "user": "U1", "files": []any{f.file("F1", "app.apk")}}}
 	f.rateLimited = 2
 	s, store := newSyncer(t, f, nil)
-	if err := s.Sync(context.Background()); err != nil {
+	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Contains(keys(t, store), "C1/F1/app.apk") {
@@ -354,7 +349,7 @@ func TestSyncPrunesOldBuilds(t *testing.T) {
 		}
 	}
 	s.now = func() time.Time { return time.Now().Add(31 * 24 * time.Hour) }
-	if err := s.Sync(ctx); err != nil {
+	if _, err := s.Sync(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if got := keys(t, store); !slices.Equal(got, []string{"C2/F8/other.apk"}) {
@@ -377,7 +372,7 @@ func TestSyncForwardedMessages(t *testing.T) {
 	f.users["U2"] = "Bob"
 
 	s, store := newSyncer(t, f, nil)
-	if err := s.Sync(context.Background()); err != nil {
+	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	m := readMeta(t, store, "C1/F1/app.apk")
@@ -407,7 +402,7 @@ func TestSyncSkipsUnchangedThreads(t *testing.T) {
 		return n
 	}
 	for range 2 {
-		if err := s.Sync(context.Background()); err != nil {
+		if _, err := s.Sync(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -419,7 +414,7 @@ func TestSyncSkipsUnchangedThreads(t *testing.T) {
 	f.replies[parent] = append(f.replies[parent], reply2)
 	f.history["C1"][0]["reply_count"] = 2
 	f.history["C1"][0]["latest_reply"] = reply2["ts"]
-	if err := s.Sync(context.Background()); err != nil {
+	if _, err := s.Sync(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if n := countReplies(); n != 2 || !slices.Contains(keys(t, store), "C1/F2/rc2.apk") {
@@ -427,49 +422,27 @@ func TestSyncSkipsUnchangedThreads(t *testing.T) {
 	}
 }
 
-func TestSyncAnnounces(t *testing.T) {
+func TestSyncReturnsNewBuilds(t *testing.T) {
 	f := newFakeSlack(t)
-	posted := ts(now.Add(-time.Hour))
-	msg := map[string]any{"ts": posted, "user": "U1", "text": "new build", "files": []any{f.file("F1", "hello.apk")}}
-	f.history["C1"] = []map[string]any{msg}
-	enable := func(c *Config) {
-		c.React = ReactConfig{Enabled: true, Emoji: ":holtdroid:"}
-		c.Reply = ReplyConfig{Enabled: true, PortalURL: "https://holtdroid.example.com/", Source: "slack"}
-	}
-	s, _ := newSyncer(t, f, enable)
-	for range 2 {
-		if err := s.Sync(context.Background()); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if len(f.posted) != 2 {
-		t.Fatalf("posted %v", f.posted)
-	}
-	react, reply := f.posted[0], f.posted[1]
-	if react.Get("method") != "reactions.add" || react.Get("name") != "holtdroid" || react.Get("ts") != posted || react.Get("channel") != "C1" {
-		t.Fatalf("reaction %v", react)
-	}
-	if text := reply.Get("text"); !strings.Contains(text, "com.example.helloworld") {
-		t.Errorf("fallback text %q", text)
-	}
-	blocks := reply.Get("blocks")
-	launch := `https://holtdroid.example.com/?launch=QzEvRjEvaGVsbG8uYXBr\u0026source=slack`
-	for _, want := range []string{"`com.example.helloworld`", "1.0 (1)", "hello.apk", `"url":"` + launch + `"`, `"url":"https://holtdroid.example.com/?launch=QzEvRjEvaGVsbG8uYXBr\u0026quick=1\u0026source=slack"`, `"style":"primary"`} {
-		if !strings.Contains(blocks, want) {
-			t.Errorf("blocks %s lack %s", blocks, want)
-		}
-	}
-	if reply.Get("thread_ts") != posted {
-		t.Fatalf("reply not in thread: %v", reply)
-	}
+	posted := now.Add(-time.Hour)
+	f.history["C1"] = []map[string]any{{"ts": ts(posted), "user": "U1", "text": "new build", "files": []any{f.file("F1", "hello.apk")}}}
+	s, _ := newSyncer(t, f, nil)
 
-	msg["reactions"] = []any{map[string]any{"name": "holtdroid", "users": []any{"UBOT"}, "count": 1}}
-	s2, store2 := newSyncer(t, f, enable)
-	if err := s2.Sync(context.Background()); err != nil {
+	st, err := s.Sync(context.Background())
+	if err != nil {
 		t.Fatal(err)
 	}
-	if len(f.posted) != 2 || !slices.Contains(keys(t, store2), "C1/F1/hello.apk") {
-		t.Fatalf("re-sync into an empty target announced again: %v", f.posted[2:])
+	if len(st.Builds) != 1 || st.Copied != 1 {
+		t.Fatalf("stats %+v", st)
+	}
+	b := st.Builds[0]
+	if b.Key != "C1/F1/hello.apk" || !b.Modified.Equal(posted.Truncate(time.Microsecond)) || !strings.Contains(b.Link, "/archives/C1/p") ||
+		b.App == nil || b.App.Package != "com.example.helloworld" || b.Size == 0 {
+		t.Fatalf("build %+v", b)
+	}
+
+	if st, err := s.Sync(context.Background()); err != nil || len(st.Builds) != 0 {
+		t.Fatalf("an already copied build must not be reported again: %+v, %v", st, err)
 	}
 }
 
@@ -484,8 +457,6 @@ func TestValidate(t *testing.T) {
 		{"channel name instead of ID", func(c *Config) { c.Channels = []string{"#builds"} }, false},
 		{"retention shorter than lookback", func(c *Config) { c.Retention = time.Hour }, false},
 		{"retention longer than lookback", func(c *Config) { c.Retention = 30 * 24 * time.Hour }, true},
-		{"reactions without an emoji", func(c *Config) { c.React = ReactConfig{Enabled: true, Emoji: "::"} }, false},
-		{"portal URL without a host", func(c *Config) { c.Reply.PortalURL = "holtdroid" }, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

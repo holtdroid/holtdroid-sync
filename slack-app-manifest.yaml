@@ -1,6 +1,6 @@
 display_information:
   name: Holtdroid
-  description: Copies APKs posted here into Holtdroid and replies with a launch link.
+  description: Copies APKs posted here into Holtdroid and announces them with launch links.
   background_color: "#8a5a3c"
 features:
   bot_user:
@@ -13,7 +13,6 @@ oauth_config:
       - groups:history
       - files:read
       - users:read
-      - reactions:write
       - chat:write
 settings:
   org_deploy_enabled: false

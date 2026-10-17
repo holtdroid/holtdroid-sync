@@ -19,7 +19,6 @@ import (
 	"github.com/kriakiku/holtdroid-sync/internal/awssso"
 	"github.com/kriakiku/holtdroid-sync/internal/broker"
 	"github.com/kriakiku/holtdroid-sync/internal/config"
-	"github.com/kriakiku/holtdroid-sync/internal/layout"
 	"github.com/kriakiku/holtdroid-sync/internal/rules"
 	"github.com/kriakiku/holtdroid-sync/internal/run"
 	"github.com/kriakiku/holtdroid-sync/internal/s3sync"
@@ -64,14 +63,7 @@ type BrokerConfig struct {
 type NotifyConfig struct {
 	URLs   []secrets.Ref
 	Remind time.Duration
-	Builds BuildsNotifyConfig
-}
-
-type BuildsNotifyConfig struct {
-	URLs      []secrets.Ref
-	PortalURL string
-	Source    string
-	MaxAge    time.Duration
+	Builds announce.Config
 }
 
 type Config struct {
@@ -90,7 +82,7 @@ func defaults() Config {
 		Source: SourceConfig{Auth: AuthConfig{Type: "sso"}},
 		Copy:   CopyConfig{Enabled: true, Interval: 5 * time.Minute, Prune: true, Target: storage.Config{Type: "filesystem"}},
 		Listen: ":8080",
-		Notify: NotifyConfig{Remind: time.Hour, Builds: BuildsNotifyConfig{Source: "s3", MaxAge: 24 * time.Hour}},
+		Notify: NotifyConfig{Remind: time.Hour, Builds: announce.Config{Source: "s3", MaxAge: 24 * time.Hour}},
 	}
 }
 
@@ -121,8 +113,11 @@ func (c Config) Validate() error {
 	if c.Copy.Enabled && c.Copy.Interval <= 0 {
 		errs = append(errs, errors.New("copy.interval must be positive"))
 	}
-	if c.Notify.Remind < 0 || c.Notify.Builds.MaxAge < 0 {
-		errs = append(errs, errors.New("notify.remind and notify.builds.maxAge must not be negative"))
+	if c.Notify.Remind < 0 {
+		errs = append(errs, errors.New("notify.remind must not be negative"))
+	}
+	if err := c.Notify.Builds.Validate(); err != nil {
+		errs = append(errs, fmt.Errorf("notify.builds.%w", err))
 	}
 	if len(c.Notify.Builds.URLs) > 0 && !c.Copy.Enabled {
 		errs = append(errs, errors.New("notify.builds needs copy.enabled: only copies are announced"))
@@ -222,11 +217,11 @@ func runJob(ctx context.Context, configPath string, once bool) error {
 		return httpSrv.Shutdown(shutdown)
 	})
 	if sync != nil {
-		announce, err := announcerFor(ctx, cfg, reg)
+		notify, err := announce.FromConfig(ctx, reg, cfg.Notify.Builds, "s3://"+cfg.Source.Bucket+"/"+cfg.Source.Prefix)
 		if err != nil {
 			return err
 		}
-		g.Go(func() error { run.Every(ctx, cfg.Copy.Interval, copyPass(sync, announce)); return nil })
+		g.Go(func() error { run.Every(ctx, cfg.Copy.Interval, copyPass(sync, notify)); return nil })
 	}
 	return g.Wait()
 }
@@ -284,22 +279,6 @@ func credentialsFor(ctx context.Context, cfg Config, reg *secrets.Registry, noti
 
 func staticStatus() any { return map[string]string{"state": string(awssso.StateReady)} }
 
-func announcerFor(ctx context.Context, cfg Config, reg *secrets.Registry) (func(context.Context, []layout.Build), error) {
-	nb := cfg.Notify.Builds
-	if len(nb.URLs) == 0 {
-		return func(context.Context, []layout.Build) {}, nil
-	}
-	urls, err := resolveAll(ctx, reg, nb.URLs)
-	if err != nil {
-		return nil, fmt.Errorf("notify.builds.urls: %w", err)
-	}
-	n, err := announce.New(urls, nb.PortalURL, nb.Source, "s3://"+cfg.Source.Bucket+"/"+cfg.Source.Prefix, nb.MaxAge)
-	if err != nil {
-		return nil, err
-	}
-	return n.Announce, nil
-}
-
 func resolveAll(ctx context.Context, reg *secrets.Registry, refs []secrets.Ref) ([]string, error) {
 	out := make([]string, 0, len(refs))
 	for _, ref := range refs {
@@ -319,7 +298,7 @@ func optional(s string) *string {
 	return &s
 }
 
-func copyPass(s *s3sync.Syncer, announce func(context.Context, []layout.Build)) func(context.Context) {
+func copyPass(s *s3sync.Syncer, notify announce.Func) func(context.Context) {
 	waiting := false
 	return func(ctx context.Context) {
 		st, err := s.Sync(ctx)
@@ -334,7 +313,7 @@ func copyPass(s *s3sync.Syncer, announce func(context.Context, []layout.Build)) 
 		default:
 			waiting = false
 		}
-		announce(ctx, st.Builds)
+		notify(ctx, st.Builds)
 		st.Log(ctx)
 	}
 }

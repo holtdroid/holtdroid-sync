@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -15,9 +16,50 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 
 	"github.com/kriakiku/holtdroid-sync/internal/layout"
+	"github.com/kriakiku/holtdroid-sync/internal/secrets"
 )
 
 const maxListed = 10
+
+type Config struct {
+	URLs      []secrets.Ref
+	PortalURL string
+	Source    string
+	MaxAge    time.Duration
+}
+
+func (c Config) Validate() error {
+	if c.MaxAge < 0 {
+		return errors.New("maxAge must not be negative")
+	}
+	if c.PortalURL != "" {
+		if u, err := url.Parse(c.PortalURL); err != nil || u.Host == "" {
+			return fmt.Errorf("portalURL must be a URL like https://holtdroid.example.com, got %q", c.PortalURL)
+		}
+	}
+	return nil
+}
+
+type Func func(context.Context, []layout.Build)
+
+func FromConfig(ctx context.Context, reg *secrets.Registry, cfg Config, where string) (Func, error) {
+	if len(cfg.URLs) == 0 {
+		return func(context.Context, []layout.Build) {}, nil
+	}
+	urls := make([]string, 0, len(cfg.URLs))
+	for _, ref := range cfg.URLs {
+		v, err := reg.Resolve(ctx, ref)
+		if err != nil {
+			return nil, err
+		}
+		urls = append(urls, v)
+	}
+	n, err := New(urls, cfg.PortalURL, cfg.Source, where, cfg.MaxAge)
+	if err != nil {
+		return nil, err
+	}
+	return n.Announce, nil
+}
 
 type Announcer struct {
 	sender *router.ServiceRouter
@@ -32,7 +74,7 @@ type Announcer struct {
 func New(urls []string, portalURL, source, where string, maxAge time.Duration) (*Announcer, error) {
 	sender, err := shoutrrr.CreateSenderWithOptions(types.SenderOptions{}, urls...)
 	if err != nil {
-		return nil, errors.New("notify.builds.urls: invalid shoutrrr URL")
+		return nil, errors.New("invalid shoutrrr URL")
 	}
 	return &Announcer{
 		sender: sender, portal: strings.TrimRight(portalURL, "/"), source: source, where: where, maxAge: maxAge,

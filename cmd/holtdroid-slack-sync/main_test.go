@@ -16,11 +16,9 @@ func TestLoadConfig(t *testing.T) {
 slack:
   token: openbao:secret/holtdroid#slack_bot_token
   channels: [C0123ABCD]
-  react:
-    enabled: true
-  reply:
-    enabled: true
-    portalURL: https://android.example.com
+notify:
+  urls: [env:NOTIFY_URL]
+  portalURL: https://android.example.com
 target:
   type: s3
   s3:
@@ -52,8 +50,8 @@ secrets:
 	if cfg.Slack.Token != secrets.Ref("openbao:secret/holtdroid#slack_bot_token") || !cfg.Slack.Threads || cfg.Slack.Lookback != 7*24*time.Hour {
 		t.Fatalf("slack %+v", cfg.Slack)
 	}
-	if !cfg.Slack.React.Enabled || cfg.Slack.React.Emoji != "holtdroid" || !cfg.Slack.Reply.Enabled || cfg.Slack.Reply.PortalURL != "https://android.example.com" || cfg.Slack.Reply.Source != "slack" {
-		t.Fatalf("react/reply %+v %+v", cfg.Slack.React, cfg.Slack.Reply)
+	if len(cfg.Notify.URLs) != 1 || cfg.Notify.PortalURL != "https://android.example.com" || cfg.Notify.Source != "slack" || cfg.Notify.MaxAge != 24*time.Hour {
+		t.Fatalf("notify %+v", cfg.Notify)
 	}
 	if cfg.Target.S3.Bucket != "apks" || !cfg.Target.S3.PathStyle || cfg.Target.S3.AccessKey != "env:S3_ACCESS_KEY" {
 		t.Fatalf("target %+v", cfg.Target)

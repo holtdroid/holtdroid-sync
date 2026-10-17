@@ -28,7 +28,7 @@ cmd/holtdroid-{slack,s3,github}-sync/   one binary per job: config, wiring, loop
 internal/layout/       source layout: Meta, staging an APK (parse + icon), publishing with sidecars, removal, launch links
 internal/announce/     new build announcements through shoutrrr
 internal/run/          shared main: cobra flags, logging, signals, polling loop
-internal/slacksync/    Slack: history, threads, forwards, reactions, Block Kit replies
+internal/slacksync/    Slack: history, threads, forwards
 internal/s3sync/       S3: list, filter, copy, prune
 internal/awssso/       IAM Identity Center device login, refresh, token cache
 internal/signin/       login links through shoutrrr
@@ -37,7 +37,7 @@ internal/githubsync/   GitHub releases: list, filter, copy, prune
 internal/apk/ rules/ storage/ secrets/ config/   copies of Holtdroid's packages
 deploy/helm/holtdroid-sync/   one chart, `job` picks the binary
 docs/                  per-job documentation
-assets/ slack-app-manifest.yaml   Slack app; keep scopes in sync with docs/slack.md and Holtdroid's docs/src/assets/
+assets/ slack-app-manifest.yaml   Slack app and its icon; keep scopes in sync with docs/slack.md and Holtdroid's docs/src/assets/
 ```
 
 `apk`, `rules`, `storage`, `secrets` and `config` are copies of Holtdroid's
