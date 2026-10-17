@@ -1,0 +1,4 @@
+[tools]
+go = "1.27.2"
+golangci-lint = "2.14.0"
+helm = "4.3.0"

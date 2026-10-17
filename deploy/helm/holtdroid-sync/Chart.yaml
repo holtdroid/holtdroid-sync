@@ -1,0 +1,9 @@
+apiVersion: v2
+name: holtdroid-sync
+description: Sync jobs that copy APKs from Slack, S3 buckets or GitHub releases into a Holtdroid artifact source
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/kriakiku/holtdroid-sync
+sources:
+  - https://github.com/kriakiku/holtdroid-sync

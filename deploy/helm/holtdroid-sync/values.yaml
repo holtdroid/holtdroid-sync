@@ -1,0 +1,64 @@
+# Which sync job runs: slack, s3 or github. Required.
+job: ""
+
+image:
+  repository: ghcr.io/kriakiku/holtdroid-sync
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Resource names default to the release name.
+fullnameOverride: ""
+
+# Secret exposed as environment variables, e.g. SLACK_BOT_TOKEN,
+# S3_ACCESS_KEY, NOTIFY_URL, referenced from config as env:NAME.
+existingSecret: ""
+
+# The job's config.yaml, rendered as is; see README.md for every key.
+config: {}
+
+# Mounted at /data: a filesystem target, and the s3 job's SSO token cache
+# (so a restart needs no new login). Holtdroid's api has to read a
+# filesystem target too: share the claim (ReadWriteMany or the same node),
+# or use an S3 target.
+persistence:
+  enabled: false
+  existingClaim: ""
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  size: 1Gi
+
+# The s3 job's /healthz, /status and /credentials.
+service:
+  port: 8080
+
+# APKs are downloaded into /tmp before they are written to the target.
+tmpSize: 2Gi
+
+serviceAccountName: ""
+
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 256Mi
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Extra manifests rendered with tpl, e.g. an ExternalSecret.
+extraObjects: []

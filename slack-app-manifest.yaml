@@ -1,0 +1,21 @@
+display_information:
+  name: Holtdroid
+  description: Copies APKs posted here into Holtdroid and replies with a launch link.
+  background_color: "#8a5a3c"
+features:
+  bot_user:
+    display_name: Holtdroid
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - channels:history
+      - groups:history
+      - files:read
+      - users:read
+      - reactions:write
+      - chat:write
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

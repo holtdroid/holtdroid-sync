@@ -1,0 +1,9 @@
+/bin/
+*.test
+*.out
+.env
+.env.*
+.DS_Store
+.serena/
+AGENTS.local.md
+CLAUDE.local.md
