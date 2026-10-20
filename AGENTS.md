@@ -7,7 +7,7 @@ file, read it too (machine-specific, not committed).
 ## What the project is
 
 Sync jobs that copy APKs from Slack, S3 buckets and GitHub releases into a
-[Holtdroid](https://github.com/kriakiku/holtdroid) folder or S3 source. See
+[Holtdroid](https://github.com/holtdroid/holtdroid) folder or S3 source. See
 `README.md` and `docs/{slack,s3,github}.md`.
 
 Interfaces with Holtdroid, all defined in Holtdroid's `design/contracts.md`
@@ -79,4 +79,4 @@ make image
 
 Conventional Commits, one line only, no body, no trailers. PR description
 empty. Agents never commit or push unless asked. Every push to `main`
-publishes `ghcr.io/kriakiku/holtdroid-sync:<sha>`.
+publishes `ghcr.io/holtdroid/holtdroid-sync:<sha>`.

@@ -1,6 +1,6 @@
 # holtdroid-sync
 
-Sync jobs that bring APKs into [Holtdroid](https://github.com/kriakiku/holtdroid).
+Sync jobs that bring APKs into [Holtdroid](https://github.com/holtdroid/holtdroid).
 Each job writes Holtdroid's source layout into a folder or an S3 prefix, and
 Holtdroid lists that place as a read-only source:
 
@@ -23,15 +23,15 @@ through [shoutrrr](https://github.com/nicholas-fedor/shoutrrr).
 
 ## Deploying
 
-One image, `ghcr.io/kriakiku/holtdroid-sync` (`linux/amd64`, `linux/arm64`,
+One image, `ghcr.io/holtdroid/holtdroid-sync` (`linux/amd64`, `linux/arm64`,
 distroless, non-root), holds all jobs as `/usr/local/bin/holtdroid-{slack,s3,github}-sync`:
 
 ```sh
-docker run --rm -v $PWD/config.yaml:/config.yaml ghcr.io/kriakiku/holtdroid-sync holtdroid-github-sync --config /config.yaml --once
+docker run --rm -v $PWD/config.yaml:/config.yaml ghcr.io/holtdroid/holtdroid-sync holtdroid-github-sync --config /config.yaml --once
 ```
 
 One Helm chart, `deploy/helm/holtdroid-sync` (tagged releases:
-`oci://ghcr.io/kriakiku/charts/holtdroid-sync`), runs one job per release:
+`oci://ghcr.io/holtdroid/charts/holtdroid-sync`), runs one job per release:
 
 ```yaml
 job: github # slack | s3 | github

@@ -1,7 +1,7 @@
 # holtdroid-slack-sync
 
 Copies APKs posted to Slack channels into a
-[Holtdroid](https://github.com/kriakiku/holtdroid) artifact source: a
+[Holtdroid](https://github.com/holtdroid/holtdroid) artifact source: a
 directory or an S3 bucket/prefix that the Holtdroid api lists. It is an
 independent job (Holtdroid decision #27): it only writes files, Holtdroid
 picks them up on its next poll.
@@ -156,6 +156,6 @@ holtdroid-slack-sync --config config.yaml          # poll every interval
 holtdroid-slack-sync --config config.yaml --once   # one pass, non-zero exit on errors (CronJob)
 ```
 
-Image: `ghcr.io/kriakiku/holtdroid-sync` (all jobs; run `holtdroid-slack-sync`).
+Image: `ghcr.io/holtdroid/holtdroid-sync` (all jobs; run `holtdroid-slack-sync`).
 Helm chart: `deploy/helm/holtdroid-sync` with `job: slack`, see the
 [README](../README.md#deploying).

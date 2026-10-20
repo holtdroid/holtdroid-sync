@@ -1,7 +1,7 @@
 # holtdroid-github-sync
 
 Brings APKs attached to GitHub releases into
-[Holtdroid](https://github.com/kriakiku/holtdroid). The job polls the
+[Holtdroid](https://github.com/holtdroid/holtdroid). The job polls the
 releases of one or more repositories and copies the `.apk` assets that match
 your rules into a folder or S3 bucket, which Holtdroid lists as a read-only
 source.
@@ -127,6 +127,6 @@ holtdroid-github-sync --config config.yaml          # poll forever
 holtdroid-github-sync --config config.yaml --once   # one pass
 ```
 
-Image: `ghcr.io/kriakiku/holtdroid-sync` (all jobs; run `holtdroid-github-sync`).
+Image: `ghcr.io/holtdroid/holtdroid-sync` (all jobs; run `holtdroid-github-sync`).
 Helm chart: `deploy/helm/holtdroid-sync` with `job: github`, see the
 [README](../README.md#deploying).

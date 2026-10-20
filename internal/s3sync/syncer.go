@@ -14,10 +14,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	"github.com/kriakiku/holtdroid-sync/internal/apk"
-	"github.com/kriakiku/holtdroid-sync/internal/layout"
-	"github.com/kriakiku/holtdroid-sync/internal/rules"
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/apk"
+	"github.com/holtdroid/holtdroid-sync/internal/layout"
+	"github.com/holtdroid/holtdroid-sync/internal/rules"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 const maxMetaSize = 1 << 20

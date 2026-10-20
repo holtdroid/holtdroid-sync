@@ -1,4 +1,4 @@
-module github.com/kriakiku/holtdroid-sync
+module github.com/holtdroid/holtdroid-sync
 
 go 1.27.2
 

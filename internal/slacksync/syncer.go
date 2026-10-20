@@ -19,9 +19,9 @@ import (
 
 	"github.com/slack-go/slack"
 
-	"github.com/kriakiku/holtdroid-sync/internal/layout"
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/layout"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 type Config struct {

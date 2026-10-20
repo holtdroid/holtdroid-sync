@@ -9,7 +9,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
 )
 
 var ErrNotExist = errors.New("object does not exist")

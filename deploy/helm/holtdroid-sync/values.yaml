@@ -2,7 +2,7 @@
 job: ""
 
 image:
-  repository: ghcr.io/kriakiku/holtdroid-sync
+  repository: ghcr.io/holtdroid/holtdroid-sync
   tag: ""
   pullPolicy: IfNotPresent
 imagePullSecrets: []

@@ -1,6 +1,6 @@
 // Package layout writes Holtdroid's artifact source layout: x.apk with the
 // x.apk.meta.json and x.apk.icon.png sidecars (design/contracts.md
-// "Artifact sources" in kriakiku/holtdroid).
+// "Artifact sources" in holtdroid/holtdroid).
 package layout
 
 import (
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kriakiku/holtdroid-sync/internal/apk"
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/apk"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 const (

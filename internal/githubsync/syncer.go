@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/go-github/v93/github"
 
-	"github.com/kriakiku/holtdroid-sync/internal/layout"
-	"github.com/kriakiku/holtdroid-sync/internal/rules"
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/layout"
+	"github.com/holtdroid/holtdroid-sync/internal/rules"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 const maxChangelog = 64 << 10

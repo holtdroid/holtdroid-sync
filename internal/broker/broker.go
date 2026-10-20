@@ -13,7 +13,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 
-	"github.com/kriakiku/holtdroid-sync/internal/awssso"
+	"github.com/holtdroid/holtdroid-sync/internal/awssso"
 )
 
 type Server struct {

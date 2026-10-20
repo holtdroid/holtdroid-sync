@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/kriakiku/holtdroid-sync/internal/announce"
-	"github.com/kriakiku/holtdroid-sync/internal/config"
-	"github.com/kriakiku/holtdroid-sync/internal/run"
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
-	"github.com/kriakiku/holtdroid-sync/internal/slacksync"
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/announce"
+	"github.com/holtdroid/holtdroid-sync/internal/config"
+	"github.com/holtdroid/holtdroid-sync/internal/run"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/slacksync"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 var version = "dev"

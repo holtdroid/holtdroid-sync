@@ -15,8 +15,8 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 
-	"github.com/kriakiku/holtdroid-sync/internal/layout"
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/layout"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
 )
 
 const maxListed = 10

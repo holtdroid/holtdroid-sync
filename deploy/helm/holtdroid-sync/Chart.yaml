@@ -4,6 +4,6 @@ description: Sync jobs that copy APKs from Slack, S3 buckets or GitHub releases 
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-home: https://github.com/kriakiku/holtdroid-sync
+home: https://github.com/holtdroid/holtdroid-sync
 sources:
-  - https://github.com/kriakiku/holtdroid-sync
+  - https://github.com/holtdroid/holtdroid-sync

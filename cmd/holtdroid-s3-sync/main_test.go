@@ -13,10 +13,10 @@ import (
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
 
-	"github.com/kriakiku/holtdroid-sync/internal/awssso"
-	"github.com/kriakiku/holtdroid-sync/internal/s3sync"
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/awssso"
+	"github.com/holtdroid/holtdroid-sync/internal/s3sync"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 func TestLoadConfig(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kriakiku/holtdroid-sync/internal/awssso"
+	"github.com/holtdroid/holtdroid-sync/internal/awssso"
 )
 
 func TestNotify(t *testing.T) {

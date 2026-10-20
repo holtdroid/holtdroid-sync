@@ -10,13 +10,13 @@ import (
 
 	"github.com/google/go-github/v93/github"
 
-	"github.com/kriakiku/holtdroid-sync/internal/announce"
-	"github.com/kriakiku/holtdroid-sync/internal/config"
-	"github.com/kriakiku/holtdroid-sync/internal/githubsync"
-	"github.com/kriakiku/holtdroid-sync/internal/rules"
-	"github.com/kriakiku/holtdroid-sync/internal/run"
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/announce"
+	"github.com/holtdroid/holtdroid-sync/internal/config"
+	"github.com/holtdroid/holtdroid-sync/internal/githubsync"
+	"github.com/holtdroid/holtdroid-sync/internal/rules"
+	"github.com/holtdroid/holtdroid-sync/internal/run"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 var version = "dev"

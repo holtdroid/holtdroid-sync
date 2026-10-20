@@ -11,7 +11,7 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
 )
 
 type S3 struct {

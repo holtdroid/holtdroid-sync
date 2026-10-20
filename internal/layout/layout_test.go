@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kriakiku/holtdroid-sync/internal/storage"
+	"github.com/holtdroid/holtdroid-sync/internal/storage"
 )
 
 func newStore(t *testing.T) storage.Store {

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kriakiku/holtdroid-sync/internal/apk"
-	"github.com/kriakiku/holtdroid-sync/internal/layout"
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/apk"
+	"github.com/holtdroid/holtdroid-sync/internal/layout"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
 )
 
 func webhook(t *testing.T) (string, func() []string) {

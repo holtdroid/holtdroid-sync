@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kriakiku/holtdroid-sync/internal/secrets"
+	"github.com/holtdroid/holtdroid-sync/internal/secrets"
 )
 
 func TestLoadConfig(t *testing.T) {

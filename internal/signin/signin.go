@@ -13,7 +13,7 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/router"
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 
-	"github.com/kriakiku/holtdroid-sync/internal/awssso"
+	"github.com/holtdroid/holtdroid-sync/internal/awssso"
 )
 
 type Notifier struct {
