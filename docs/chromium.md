@@ -67,7 +67,8 @@ The sidecar holds:
 tags on builds but doesn't stop a launch on an older Android version.
 
 A build is downloaded again only when its snapshot revision changes. When
-only the channels or `requiresSdk` change, only the sidecar is rewritten.
+only the channels, `requiresSdk` or `frontend` change, only the sidecar is
+rewritten.
 
 ## Configuration
 
@@ -118,5 +119,5 @@ config:
   target: { type: s3, s3: { … , prefix: chromium } }
 ```
 
-The job needs only outbound HTTPS to `chromiumdash.appspot.com` and
+The job needs only outbound HTTPS to `chromiumdash.appspot.com`, `chrome-devtools-frontend.appspot.com` and
 `storage.googleapis.com`, plus access to the target.

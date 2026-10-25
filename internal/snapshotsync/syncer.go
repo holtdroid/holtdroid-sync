@@ -22,11 +22,15 @@ import (
 
 const (
 	DashURL     = "https://chromiumdash.appspot.com"
+	FrontendURL = "https://chrome-devtools-frontend.appspot.com/serve_rev/"
 	SnapshotURL = "https://storage.googleapis.com"
 	Bucket      = "chromium-browser-snapshots"
 	Platform    = "AndroidDesktop_x64"
 	searchStep  = 5000
 	searchLimit = 50000
+	// Google uploads a Canary's DevTools frontend some hours after the
+	// release, so the newest of these Canaries with one wins.
+	frontendCandidates = 5
 )
 
 var channels = []string{"Stable", "Beta", "Dev", "Canary"}
@@ -76,6 +80,7 @@ type Requirement struct {
 type Syncer struct {
 	hc        *http.Client
 	dash      string
+	frontends string
 	snapshots string
 	platform  string
 	app       App
@@ -88,7 +93,7 @@ type Syncer struct {
 
 func New(hc *http.Client, app App, sel Selection, reqs []Requirement, store storage.Store, prune bool) *Syncer {
 	return &Syncer{
-		hc: hc, dash: DashURL, snapshots: SnapshotURL, platform: Platform, app: app,
+		hc: hc, dash: DashURL, frontends: FrontendURL, snapshots: SnapshotURL, platform: Platform, app: app,
 		sel: sel, reqs: reqs, store: store, prune: prune, log: slog.Default().With("component", "syncer"),
 	}
 }
@@ -113,6 +118,7 @@ type build struct {
 	release   release
 	revision  int
 	channels  []string
+	frontend  string
 }
 
 func Key(milestone int) string { return fmt.Sprintf("chromium-%d.apk", milestone) }
@@ -140,6 +146,7 @@ func (s *Syncer) Sync(ctx context.Context) (layout.Stats, error) {
 			before := maps.Clone(meta.Tags)
 			setChannels(&meta, b.channels)
 			s.setRequires(&meta, b.milestone)
+			setFrontend(&meta, b.frontend)
 			if maps.Equal(before, meta.Tags) {
 				st.Skipped++
 				continue
@@ -189,7 +196,7 @@ func (s *Syncer) plan(ctx context.Context) ([]build, error) {
 	onChannel := map[int][]string{}
 	canary := 0
 	for _, ch := range channels {
-		rs, err := s.releases(ctx, ch, 0)
+		rs, err := s.releases(ctx, ch, 0, 1)
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +233,7 @@ func (s *Syncer) plan(ctx context.Context) ([]build, error) {
 
 	out := make([]build, 0, len(picked))
 	for _, m := range picked {
-		rs, err := s.releases(ctx, "Canary", m)
+		rs, err := s.releases(ctx, "Canary", m, frontendCandidates)
 		if err != nil {
 			return nil, err
 		}
@@ -241,13 +248,13 @@ func (s *Syncer) plan(ctx context.Context) ([]build, error) {
 		if rev == 0 {
 			continue
 		}
-		out = append(out, build{milestone: m, release: rs[0], revision: rev, channels: orderChannels(onChannel[m])})
+		out = append(out, build{milestone: m, release: rs[0], revision: rev, channels: orderChannels(onChannel[m]), frontend: s.frontend(ctx, rs)})
 	}
 	return out, nil
 }
 
-func (s *Syncer) releases(ctx context.Context, channel string, milestone int) ([]release, error) {
-	q := url.Values{"channel": {channel}, "platform": {"Android"}, "num": {"1"}}
+func (s *Syncer) releases(ctx context.Context, channel string, milestone, num int) ([]release, error) {
+	q := url.Values{"channel": {channel}, "platform": {"Android"}, "num": {strconv.Itoa(num)}}
 	if milestone > 0 {
 		q.Set("milestone", strconv.Itoa(milestone))
 	}
@@ -339,11 +346,11 @@ func (s *Syncer) copy(ctx context.Context, key string, b build) (int64, error) {
 			"version":   staged.App.VersionName,
 			"minSdk":    strconv.Itoa(int(staged.App.MinSDK)),
 			"targetSdk": strconv.Itoa(int(staged.App.TargetSDK)),
-			"frontend":  b.release.Hashes.Chromium,
 		},
 	}
 	setChannels(&meta, b.channels)
 	s.setRequires(&meta, b.milestone)
+	setFrontend(&meta, b.frontend)
 	return staged.Size, staged.Publish(ctx, s.store, key, meta)
 }
 
@@ -364,6 +371,37 @@ func (s *Syncer) current(ctx context.Context, key string, have map[string]storag
 		return layout.Meta{}, false
 	}
 	return m, true
+}
+
+// frontend is the commit of the newest of rs whose DevTools frontend is
+// served, or "" when none is.
+func (s *Syncer) frontend(ctx context.Context, rs []release) string {
+	for _, r := range rs {
+		if r.Hashes.Chromium == "" {
+			continue
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodHead, s.frontends+"@"+r.Hashes.Chromium+"/inspector.html", nil)
+		if err != nil {
+			continue
+		}
+		resp, err := s.hc.Do(req)
+		if err != nil {
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			return r.Hashes.Chromium
+		}
+	}
+	return ""
+}
+
+func setFrontend(m *layout.Meta, rev string) {
+	if rev == "" {
+		delete(m.Tags, "frontend")
+		return
+	}
+	m.Tags["frontend"] = rev
 }
 
 func setChannels(m *layout.Meta, chs []string) {

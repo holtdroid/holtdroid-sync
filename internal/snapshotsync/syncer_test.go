@@ -62,6 +62,7 @@ type fakeChromium struct {
 	downloads  int
 	dashFails  bool
 	milestones []milestone
+	unserved   map[string]bool
 }
 
 func newFakeChromium(t *testing.T, app App) *fakeChromium {
@@ -71,6 +72,7 @@ func newFakeChromium(t *testing.T, app App) *fakeChromium {
 		channels:  map[string]int{"Stable": 156, "Beta": 157, "Dev": 158, "Canary": 158},
 		canary:    map[int]int{},
 		snapshots: []int{1300000},
+		unserved:  map[string]bool{"hash158": true},
 	}
 	for m := 158; m >= 140; m-- {
 		pos := 1300000 + (m-140)*10000
@@ -105,10 +107,19 @@ func (f *fakeChromium) serve(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte("[]"))
 			return
 		}
-		writeJSON(w, []map[string]any{{
-			"milestone": m, "version": fmt.Sprintf("%d.0.1.0", m), "chromium_main_branch_position": pos,
-			"time": time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).UnixMilli(), "hashes": map[string]string{"chromium": fmt.Sprintf("hash%d", m)},
-		}})
+		rs := []map[string]any{}
+		for i, h := range []string{fmt.Sprintf("hash%d", m), fmt.Sprintf("hash%d-prev", m)} {
+			rs = append(rs, map[string]any{
+				"milestone": m, "version": fmt.Sprintf("%d.0.%d.0", m, 2-i), "chromium_main_branch_position": pos - i*10,
+				"time": time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC).UnixMilli(), "hashes": map[string]string{"chromium": h},
+			})
+		}
+		n, _ := strconv.Atoi(q.Get("num"))
+		writeJSON(w, rs[:min(n, len(rs))])
+	case strings.HasPrefix(r.URL.Path, "/serve_rev/@") && strings.HasSuffix(r.URL.Path, "/inspector.html"):
+		if f.unserved[strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/serve_rev/@"), "/inspector.html")] {
+			http.NotFound(w, r)
+		}
 	case r.URL.Path == "/fetch_milestones":
 		writeJSON(w, f.milestones)
 	case r.URL.Path == "/storage/v1/b/"+Bucket+"/o":
@@ -159,7 +170,7 @@ func (f *fakeChromium) syncer(t *testing.T, app App, sel Selection, store storag
 	}
 	app.Package = meta.Package
 	s := New(f.srv.Client(), app, sel, []Requirement{{From: 150, MinSDK: 34}, {From: 157, MinSDK: 35}}, store, true)
-	s.dash, s.snapshots = f.srv.URL, f.srv.URL
+	s.dash, s.snapshots, s.frontends = f.srv.URL, f.srv.URL, f.srv.URL+"/serve_rev/"
 	return s
 }
 
@@ -218,13 +229,13 @@ func testSync(t *testing.T, app App) {
 	}
 	m := readMeta(t, store, "chromium-158.apk")
 	if m.Title != "Chromium 158" || !strings.HasPrefix(m.Note, app.Name+" ") || m.Origin != "chromium-snapshots" || m.Tags["milestone"] != "158" || m.Tags["revision"] != "1480090" ||
-		m.Tags["channel"] != "dev,canary" || m.Tags["frontend"] != "hash158" || m.Tags["version"] == "" || m.Tags["minSdk"] == "" {
+		m.Tags["channel"] != "dev,canary" || m.Tags["frontend"] != "hash158-prev" || m.Tags["version"] == "" || m.Tags["minSdk"] == "" {
 		t.Fatalf("meta %+v", m)
 	}
 	if tags := readMeta(t, store, "chromium-150.apk").Tags; tags["channel"] != "" || tags["requiresSdk"] != "34" {
 		t.Fatalf("150 tags %v", tags)
 	}
-	if tags := readMeta(t, store, "chromium-145.apk").Tags; tags["requiresSdk"] != "" {
+	if tags := readMeta(t, store, "chromium-145.apk").Tags; tags["requiresSdk"] != "" || tags["frontend"] != "hash145" {
 		t.Fatalf("145 tags %v", tags)
 	}
 	if r := m.Tags["requiresSdk"]; r != "35" {
@@ -234,6 +245,14 @@ func testSync(t *testing.T, app App) {
 	st, err = s.Sync(ctx)
 	if err != nil || st.Copied != 0 || st.Skipped != len(want) || f.downloads != len(want) {
 		t.Fatalf("second pass %+v %v, downloads %d", st, err, f.downloads)
+	}
+
+	f.set(func(f *fakeChromium) { f.unserved = map[string]bool{"hash157": true, "hash157-prev": true} })
+	if _, err := s.Sync(ctx); err != nil || f.downloads != len(want) {
+		t.Fatalf("frontends published later: %v, downloads %d", err, f.downloads)
+	}
+	if a, b := readMeta(t, store, "chromium-158.apk").Tags["frontend"], readMeta(t, store, "chromium-157.apk").Tags["frontend"]; a != "hash158" || b != "" {
+		t.Fatalf("frontends 158 %q, 157 %q", a, b)
 	}
 
 	s.reqs = []Requirement{{From: 140, MinSDK: 31}}

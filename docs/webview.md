@@ -66,12 +66,16 @@ The `tags` are:
 - `version`, `minSdk` and `targetSdk` (from the APK);
 - `requiresSdk`: the Android API level the build actually needs, when a
   `requirements` rule raises it above `minSdk`;
-- `frontend`: the Canary release's commit, whose DevTools frontend Holtdroid
-  serves, because snapshot builds report no revision of their own;
+- `frontend`: the commit of the milestone's newest Canary whose DevTools
+  frontend `chrome-devtools-frontend.appspot.com` already serves (Google
+  uploads it some hours after the release; the job looks at the last 5 and
+  leaves the tag out when none is served yet). Holtdroid serves that
+  frontend, because snapshot builds report no revision of their own;
 - `channel`: a comma-separated subset of `stable`, `beta`, `dev` and `canary`.
 
 A build is downloaded again only when its snapshot revision changes. When
-only the channels or `requiresSdk` change, only the sidecar is rewritten.
+only the channels, `requiresSdk` or `frontend` change, only the sidecar is
+rewritten.
 
 ## Requirements
 
@@ -140,5 +144,5 @@ config:
   target: { type: s3, s3: { … , prefix: webview } }
 ```
 
-The job needs only outbound HTTPS to `chromiumdash.appspot.com` and
+The job needs only outbound HTTPS to `chromiumdash.appspot.com`, `chrome-devtools-frontend.appspot.com` and
 `storage.googleapis.com`, plus access to the target.
