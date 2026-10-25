@@ -6,9 +6,10 @@ file, read it too (machine-specific, not committed).
 
 ## What the project is
 
-Sync jobs that copy APKs from Slack, S3 buckets and GitHub releases into a
+Sync jobs that copy APKs from Slack, S3 buckets, GitHub releases and
+Chromium's WebView snapshots into a
 [Holtdroid](https://github.com/holtdroid/holtdroid) folder or S3 source. See
-`README.md` and `docs/{slack,s3,github}.md`.
+`README.md` and `docs/{slack,s3,github,webview}.md`.
 
 Interfaces with Holtdroid, all defined in Holtdroid's `design/contracts.md`
 ("Artifact sources"):
@@ -24,7 +25,7 @@ Change them together with Holtdroid. Never depend on Holtdroid's Go module.
 ## Layout
 
 ```
-cmd/holtdroid-{slack,s3,github}-sync/   one binary per job: config, wiring, loop
+cmd/holtdroid-{slack,s3,github,webview}-sync/   one binary per job: config, wiring, loop
 internal/layout/       source layout: Meta, staging an APK (parse + icon), publishing with sidecars, removal, launch links
 internal/announce/     new build announcements through shoutrrr
 internal/run/          shared main: cobra flags, logging, signals, polling loop
@@ -34,6 +35,7 @@ internal/awssso/       IAM Identity Center device login, refresh, token cache
 internal/signin/       login links through shoutrrr
 internal/broker/       /healthz, /status, /credentials (ECS format)
 internal/githubsync/   GitHub releases: list, filter, copy, prune
+internal/webviewsync/  Chromium WebView snapshots: milestones from Chromium Dash, ranged zip extraction, prune
 internal/apk/ rules/ storage/ secrets/ config/   copies of Holtdroid's packages
 deploy/helm/holtdroid-sync/   one chart, `job` picks the binary
 docs/                  per-job documentation
@@ -61,8 +63,8 @@ goes into `layout`, `announce` or `run`, not into one job.
 
 ## Testing
 
-Table-driven tests next to the code. Slack, GitHub, Identity Center and
-webhooks are `httptest` fakes, S3 is `gofakes3`. No test hits the network.
+Table-driven tests next to the code. Slack, GitHub, Identity Center,
+Chromium Dash, the snapshot bucket and webhooks are `httptest` fakes, S3 is `gofakes3`. No test hits the network.
 
 ## Commands
 

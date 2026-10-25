@@ -27,7 +27,12 @@ type Metadata struct {
 func Parse(path string) (Metadata, []byte, error) {
 	pkg, err := androidapk.OpenFile(path)
 	if err != nil {
-		return Metadata{}, nil, fmt.Errorf("open apk: %w", err)
+		meta, ferr := parseManifest(path)
+		if ferr != nil {
+			return Metadata{}, nil, fmt.Errorf("open apk: %w", err)
+		}
+		meta.ABIs, err = abis(path)
+		return meta, nil, err
 	}
 	defer pkg.Close()
 

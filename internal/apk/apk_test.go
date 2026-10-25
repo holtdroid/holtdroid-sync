@@ -34,3 +34,23 @@ func TestParseRejectsNonAPK(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestDecodeManifestMatchesAndroidbinary(t *testing.T) {
+	want, _, err := Parse("testdata/helloworld.apk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := parseManifest("testdata/helloworld.apk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Package != want.Package || got.VersionName != want.VersionName || got.VersionCode != want.VersionCode ||
+		got.MinSDK != want.MinSDK || got.TargetSDK != want.TargetSDK {
+		t.Fatalf("fallback %+v, androidbinary %+v", got, want)
+	}
+	for _, raw := range [][]byte{nil, {3, 0, 8, 0}, {3, 0, 8, 0, 100, 0, 0, 0, 1, 0}} {
+		if _, err := decodeManifest(raw); err == nil {
+			t.Fatalf("decoded %v", raw)
+		}
+	}
+}
