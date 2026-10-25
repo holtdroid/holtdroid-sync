@@ -31,6 +31,8 @@ Milestones come from [Chromium Dash](https://chromiumdash.appspot.com):
   channels, always;
 - the newest `milestones.latest` milestones;
 - every milestone divisible by `milestones.every` (130, 135, 140, …);
+- past the newest `milestones.older.after` available milestones, only those
+  divisible by `milestones.older.every` instead (off by default);
 - `milestones.extra`.
 
 All of them are limited to milestones that have snapshots. For each one,
@@ -101,6 +103,9 @@ builds, around 4.5 GB.
 milestones:
   latest: 6       # newest milestones
   every: 5        # plus every milestone divisible by this (0: none)
+  older:          # past the newest `after`, every `older.every`th instead of `every`th
+    after: 0      # 0: off
+    every: 0
   extra: [133]    # plus these
 requirements:
   - { from: 149, minSdk: 34 }

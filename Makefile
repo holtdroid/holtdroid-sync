@@ -19,7 +19,7 @@ fmt:
 	golangci-lint fmt ./...
 
 check: lint test build
-	for job in slack s3 github webview; do helm lint deploy/helm/holtdroid-sync --set job=$$job || exit 1; done
+	for job in slack s3 github webview chromium; do helm lint deploy/helm/holtdroid-sync --set job=$$job || exit 1; done
 
 image:
 	docker buildx build --platform linux/amd64 --build-arg VERSION=$(VERSION) -t holtdroid-sync:$(VERSION) --load .

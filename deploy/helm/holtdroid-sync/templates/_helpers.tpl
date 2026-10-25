@@ -1,7 +1,7 @@
 {{- define "sync.job" -}}
-{{- $job := required "job is required: slack, s3, github or webview" .Values.job -}}
-{{- if not (has $job (list "slack" "s3" "github" "webview")) -}}
-{{- fail (printf "job must be slack, s3, github or webview, got %q" $job) -}}
+{{- $job := required "job is required: slack, s3, github, webview or chromium" .Values.job -}}
+{{- if not (has $job (list "slack" "s3" "github" "webview" "chromium")) -}}
+{{- fail (printf "job must be slack, s3, github, webview or chromium, got %q" $job) -}}
 {{- end -}}
 {{- printf "holtdroid-%s-sync" $job -}}
 {{- end -}}

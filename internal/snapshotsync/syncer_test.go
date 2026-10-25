@@ -1,4 +1,4 @@
-package webviewsync
+package snapshotsync
 
 import (
 	"archive/zip"
@@ -23,7 +23,7 @@ import (
 
 const testAPK = "../apk/testdata/helloworld.apk"
 
-func snapshotZip(t *testing.T, method uint16) []byte {
+func snapshotZip(t *testing.T, method uint16, app App) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(testAPK)
 	if err != nil {
@@ -31,18 +31,16 @@ func snapshotZip(t *testing.T, method uint16) []byte {
 	}
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	for _, f := range []struct {
-		name string
-		body []byte
-	}{
-		{"chrome-android-desktop/apks/ChromePublic.apk", bytes.Repeat([]byte("x"), 3<<20)},
-		{"chrome-android-desktop/apks/SystemWebView.apk", raw},
-	} {
-		w, err := zw.CreateHeader(&zip.FileHeader{Name: f.name, Method: method})
+	for _, entry := range []string{Browser.Entry, WebView.Entry} {
+		body := bytes.Repeat([]byte("x"), 3<<20)
+		if entry == app.Entry {
+			body = raw
+		}
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: "chrome-android-desktop" + entry, Method: method})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := w.Write(f.body); err != nil {
+		if _, err := w.Write(body); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -66,10 +64,10 @@ type fakeChromium struct {
 	milestones []milestone
 }
 
-func newFakeChromium(t *testing.T) *fakeChromium {
+func newFakeChromium(t *testing.T, app App) *fakeChromium {
 	f := &fakeChromium{
 		t:         t,
-		zip:       snapshotZip(t, zip.Deflate),
+		zip:       snapshotZip(t, zip.Deflate, app),
 		channels:  map[string]int{"Stable": 156, "Beta": 157, "Dev": 158, "Canary": 158},
 		canary:    map[int]int{},
 		snapshots: []int{1300000},
@@ -153,14 +151,15 @@ func (f *fakeChromium) set(fn func(*fakeChromium)) {
 	fn(f)
 }
 
-func (f *fakeChromium) syncer(t *testing.T, sel Selection, store storage.Store) *Syncer {
+func (f *fakeChromium) syncer(t *testing.T, app App, sel Selection, store storage.Store) *Syncer {
 	t.Helper()
 	meta, _, err := apk.Parse(testAPK)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(f.srv.Client(), sel, []Requirement{{From: 150, MinSDK: 34}, {From: 157, MinSDK: 35}}, store, true)
-	s.dash, s.snapshots, s.pkg = f.srv.URL, f.srv.URL, meta.Package
+	app.Package = meta.Package
+	s := New(f.srv.Client(), app, sel, []Requirement{{From: 150, MinSDK: 34}, {From: 157, MinSDK: 35}}, store, true)
+	s.dash, s.snapshots = f.srv.URL, f.srv.URL
 	return s
 }
 
@@ -195,13 +194,19 @@ func apkKeys(t *testing.T, store storage.Store) []string {
 }
 
 func TestSync(t *testing.T) {
+	for _, app := range []App{WebView, Browser} {
+		t.Run(app.Name, func(t *testing.T) { testSync(t, app) })
+	}
+}
+
+func testSync(t *testing.T, app App) {
 	ctx := context.Background()
-	f := newFakeChromium(t)
+	f := newFakeChromium(t, app)
 	store, err := storage.NewFilesystem(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := f.syncer(t, Selection{Latest: 2, Every: 5, Milestones: []int{141, 120}}, store)
+	s := f.syncer(t, app, Selection{Latest: 2, Every: 5, Milestones: []int{141, 120}}, store)
 
 	st, err := s.Sync(ctx)
 	if err != nil {
@@ -212,7 +217,7 @@ func TestSync(t *testing.T) {
 		t.Fatalf("keys %v, stats %+v, downloads %d", got, st, f.downloads)
 	}
 	m := readMeta(t, store, "chromium-158.apk")
-	if m.Title != "Chromium 158" || m.Origin != "chromium-snapshots" || m.Tags["milestone"] != "158" || m.Tags["revision"] != "1480090" ||
+	if m.Title != "Chromium 158" || !strings.HasPrefix(m.Note, app.Name+" ") || m.Origin != "chromium-snapshots" || m.Tags["milestone"] != "158" || m.Tags["revision"] != "1480090" ||
 		m.Tags["channel"] != "dev,canary" || m.Tags["frontend"] != "hash158" || m.Tags["version"] == "" || m.Tags["minSdk"] == "" {
 		t.Fatalf("meta %+v", m)
 	}
@@ -280,13 +285,39 @@ func TestSync(t *testing.T) {
 	}
 }
 
+func TestSelection(t *testing.T) {
+	available := []int{158, 157, 156, 155, 154, 153, 152, 151, 150, 149, 148, 147, 146, 145, 144}
+	for _, tc := range []struct {
+		name string
+		sel  Selection
+		want []int
+	}{
+		{"latest and every", Selection{Latest: 3, Every: 5}, []int{158, 157, 156, 155, 150, 145}},
+		{"thinned past the newest", Selection{Latest: 2, Every: 2, Older: Thinning{After: 8, Every: 5}}, []int{158, 157, 156, 154, 152, 150, 145}},
+		{"thinned to nothing", Selection{Latest: 1, Every: 2, Older: Thinning{After: 4}, Milestones: []int{147}}, []int{158, 156, 147}},
+		{"extra only", Selection{Milestones: []int{150}}, []int{150}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []int
+			for i, m := range available {
+				if tc.sel.picks(i, m) {
+					got = append(got, m)
+				}
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestOpenEntryStored(t *testing.T) {
-	body := snapshotZip(t, zip.Store)
+	body := snapshotZip(t, zip.Store, WebView)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeContent(w, r, "x.zip", time.Time{}, bytes.NewReader(body))
 	}))
 	defer srv.Close()
-	rc, size, err := openEntry(context.Background(), srv.Client(), srv.URL, apkEntry)
+	rc, size, err := openEntry(context.Background(), srv.Client(), srv.URL, WebView.Entry)
 	if err != nil {
 		t.Fatal(err)
 	}

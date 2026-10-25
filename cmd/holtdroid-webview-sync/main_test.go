@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/holtdroid/holtdroid-sync/internal/webviewsync"
+	"github.com/holtdroid/holtdroid-sync/internal/snapshotsync"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -68,7 +68,7 @@ func TestRequirementsConfig(t *testing.T) {
 		t.Fatalf("defaults %+v", d)
 	}
 	bad := defaults()
-	bad.Requirements = []webviewsync.Requirement{{From: 0, MinSDK: 34}}
+	bad.Requirements = []snapshotsync.Requirement{{From: 0, MinSDK: 34}}
 	if bad.Validate() == nil {
 		t.Fatal("valid")
 	}

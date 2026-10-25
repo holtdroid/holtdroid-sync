@@ -1,4 +1,4 @@
-package webviewsync
+package snapshotsync
 
 import (
 	"archive/zip"

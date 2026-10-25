@@ -1,4 +1,4 @@
-package webviewsync
+package snapshotsync
 
 import (
 	"cmp"
@@ -25,18 +25,45 @@ const (
 	SnapshotURL = "https://storage.googleapis.com"
 	Bucket      = "chromium-browser-snapshots"
 	Platform    = "AndroidDesktop_x64"
-	Package     = "com.android.webview"
-	apkEntry    = "/apks/SystemWebView.apk"
 	searchStep  = 5000
 	searchLimit = 50000
 )
 
 var channels = []string{"Stable", "Beta", "Dev", "Canary"}
 
+// App is one of the APKs in a snapshot's chrome-android-desktop.zip.
+type App struct {
+	Entry   string
+	Package string
+	Name    string
+}
+
+var (
+	WebView = App{Entry: "/apks/SystemWebView.apk", Package: "com.android.webview", Name: "Chromium WebView"}
+	Browser = App{Entry: "/apks/ChromePublic.apk", Package: "org.chromium.chrome", Name: "Chromium"}
+)
+
+// Selection picks milestones by their place among the available ones,
+// newest first: the newest Latest, every milestone divisible by Every, and
+// past the newest Older.After only those divisible by Older.Every.
 type Selection struct {
 	Latest     int
 	Every      int
+	Older      Thinning
 	Milestones []int
+}
+
+type Thinning struct {
+	After int
+	Every int
+}
+
+func (sel Selection) picks(i, m int) bool {
+	every := sel.Every
+	if sel.Older.After > 0 && i >= sel.Older.After {
+		every = sel.Older.Every
+	}
+	return i < sel.Latest || (every > 0 && m%every == 0) || slices.Contains(sel.Milestones, m)
 }
 
 // Requirement raises the Android API level builds from a milestone on need,
@@ -51,7 +78,7 @@ type Syncer struct {
 	dash      string
 	snapshots string
 	platform  string
-	pkg       string
+	app       App
 	sel       Selection
 	reqs      []Requirement
 	store     storage.Store
@@ -59,9 +86,9 @@ type Syncer struct {
 	log       *slog.Logger
 }
 
-func New(hc *http.Client, sel Selection, reqs []Requirement, store storage.Store, prune bool) *Syncer {
+func New(hc *http.Client, app App, sel Selection, reqs []Requirement, store storage.Store, prune bool) *Syncer {
 	return &Syncer{
-		hc: hc, dash: DashURL, snapshots: SnapshotURL, platform: Platform, pkg: Package,
+		hc: hc, dash: DashURL, snapshots: SnapshotURL, platform: Platform, app: app,
 		sel: sel, reqs: reqs, store: store, prune: prune, log: slog.Default().With("component", "syncer"),
 	}
 }
@@ -192,7 +219,7 @@ func (s *Syncer) plan(ctx context.Context) ([]build, error) {
 
 	var picked []int
 	for i, m := range available {
-		if i < s.sel.Latest || (s.sel.Every > 0 && m%s.sel.Every == 0) || slices.Contains(s.sel.Milestones, m) || onChannel[m] != nil {
+		if s.sel.picks(i, m) || onChannel[m] != nil {
 			picked = append(picked, m)
 		}
 	}
@@ -287,7 +314,7 @@ func (s *Syncer) zipURL(rev int) string {
 }
 
 func (s *Syncer) copy(ctx context.Context, key string, b build) (int64, error) {
-	body, size, err := openEntry(ctx, s.hc, s.zipURL(b.revision), apkEntry)
+	body, size, err := openEntry(ctx, s.hc, s.zipURL(b.revision), s.app.Entry)
 	if err != nil {
 		return 0, err
 	}
@@ -297,12 +324,12 @@ func (s *Syncer) copy(ctx context.Context, key string, b build) (int64, error) {
 		return 0, err
 	}
 	defer staged.Close()
-	if staged.App == nil || staged.App.Package != s.pkg {
-		return 0, fmt.Errorf("snapshot %d: not a %s APK", b.revision, s.pkg)
+	if staged.App == nil || staged.App.Package != s.app.Package {
+		return 0, fmt.Errorf("snapshot %d: not a %s APK", b.revision, s.app.Package)
 	}
 	meta := layout.Meta{
 		Title:      fmt.Sprintf("Chromium %d", b.milestone),
-		Note:       fmt.Sprintf("Chromium WebView %s, snapshot r%d", staged.App.VersionName, b.revision),
+		Note:       fmt.Sprintf("%s %s, snapshot r%d", s.app.Name, staged.App.VersionName, b.revision),
 		UploadedAt: time.UnixMilli(b.release.Time).UTC(),
 		Link:       fmt.Sprintf("https://commondatastorage.googleapis.com/%s/index.html?prefix=%s/%d/", Bucket, s.platform, b.revision),
 		Origin:     "chromium-snapshots",

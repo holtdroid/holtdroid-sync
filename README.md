@@ -16,6 +16,7 @@ x.apk.icon.png    # the launcher icon re-rendered at 256 px, when there is one
 | `holtdroid-s3-sync`     | an S3 bucket, with AWS IAM Identity Center logins; or brokers credentials so Holtdroid reads it directly | [docs/s3.md](docs/s3.md) |
 | `holtdroid-github-sync` | assets of GitHub releases                                                | [docs/github.md](docs/github.md)     |
 | `holtdroid-webview-sync` | Chromium's x86_64 WebView snapshot builds, one per milestone, for Holtdroid's WebView catalog | [docs/webview.md](docs/webview.md) |
+| `holtdroid-chromium-sync` | Chromium browser builds from the same snapshots, one per milestone, thinned out with age | [docs/chromium.md](docs/chromium.md) |
 
 The jobs are independent of Holtdroid's code and of each other. They share
 only this repository: the APK parser and icon renderer, the folder/S3
@@ -25,7 +26,7 @@ through [shoutrrr](https://github.com/nicholas-fedor/shoutrrr).
 ## Deploying
 
 One image, `ghcr.io/holtdroid/holtdroid-sync` (`linux/amd64`, `linux/arm64`,
-distroless, non-root), holds all jobs as `/usr/local/bin/holtdroid-{slack,s3,github,webview}-sync`:
+distroless, non-root), holds all jobs as `/usr/local/bin/holtdroid-{slack,s3,github,webview,chromium}-sync`:
 
 ```sh
 docker run --rm -v $PWD/config.yaml:/config.yaml ghcr.io/holtdroid/holtdroid-sync holtdroid-github-sync --config /config.yaml --once
@@ -35,7 +36,7 @@ One Helm chart, `deploy/helm/holtdroid-sync` (tagged releases:
 `oci://ghcr.io/holtdroid/charts/holtdroid-sync`), runs one job per release:
 
 ```yaml
-job: github # slack | s3 | github | webview
+job: github # slack | s3 | github | webview | chromium
 existingSecret: holtdroid-github-sync # env vars for env: references in config
 config: # the job's config.yaml, see its docs
   repos:
@@ -54,7 +55,7 @@ e.g. an `ExternalSecret`.
 ## Common options
 
 Every job takes a YAML file (`--config`), overridden by
-`HOLTDROID_{SLACK,S3,GITHUB,WEBVIEW}_SYNC_*` environment variables (`__` separates
+`HOLTDROID_{SLACK,S3,GITHUB,WEBVIEW,CHROMIUM}_SYNC_*` environment variables (`__` separates
 levels, lists are comma-separated), and `--once` for a single pass.
 
 - **Secrets** are references, never values: `env:NAME`, `file:/path`,
