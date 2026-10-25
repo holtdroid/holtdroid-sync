@@ -2,11 +2,15 @@ package apk
 
 import (
 	"archive/zip"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"unicode/utf16"
+
+	"github.com/shogo82148/androidbinary"
+	androidapk "github.com/shogo82148/androidbinary/apk"
 )
 
 const (
@@ -15,60 +19,83 @@ const (
 	chunkResourceMap = 0x0180
 	chunkStartElem   = 0x0102
 
+	attrLabel       = 0x01010001
+	attrIcon        = 0x01010002
 	attrVersionCode = 0x0101021b
 	attrVersionName = 0x0101021c
 	attrMinSDK      = 0x0101020c
 	attrTargetSDK   = 0x01010270
 
-	typeString = 0x03
-	typeIntDec = 0x10
-	typeIntHex = 0x11
+	typeReference = 0x01
+	typeString    = 0x03
+	typeIntDec    = 0x10
+	typeIntHex    = 0x11
 )
 
-// parseManifest reads the package, version and SDK levels from a binary
-// AndroidManifest.xml by attribute resource IDs. It is the fallback for
-// manifests androidbinary refuses, such as Chromium's, whose optimised
+type manifest struct {
+	Metadata
+	app androidapk.Application
+}
+
+// parseManifest reads the package, version, SDK levels, label and icon from
+// a binary AndroidManifest.xml by attribute resource IDs. It is the fallback
+// for manifests androidbinary refuses, such as Chromium's, whose optimised
 // namespaces it can't resolve.
-func parseManifest(path string) (Metadata, error) {
+func parseManifest(path string) (manifest, error) {
 	z, err := zip.OpenReader(path)
 	if err != nil {
-		return Metadata{}, err
+		return manifest{}, err
 	}
 	defer z.Close()
-	f, err := z.Open("AndroidManifest.xml")
+	raw, err := readEntry(z, "AndroidManifest.xml", 16<<20)
 	if err != nil {
-		return Metadata{}, err
+		return manifest{}, err
 	}
-	raw, err := io.ReadAll(io.LimitReader(f, 16<<20))
-	f.Close()
+	m, err := decodeManifest(raw)
 	if err != nil {
-		return Metadata{}, err
+		return manifest{}, err
 	}
-	return decodeManifest(raw)
+	if rawTable, err := readEntry(z, "resources.arsc", 64<<20); err == nil {
+		if table, err := androidbinary.NewTableFile(bytes.NewReader(rawTable)); err == nil {
+			m.app.Icon = m.app.Icon.WithTableFile(table)
+			m.app.Label = m.app.Label.WithTableFile(table)
+		}
+	}
+	m.Label, _ = m.app.Label.String()
+	return m, nil
+}
+
+func readEntry(z *zip.ReadCloser, name string, limit int64) ([]byte, error) {
+	f, err := z.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, limit))
 }
 
 var errManifest = errors.New("malformed binary manifest")
 
-func decodeManifest(b []byte) (Metadata, error) {
+func decodeManifest(b []byte) (manifest, error) {
 	le := binary.LittleEndian
 	if len(b) < 8 || le.Uint16(b) != chunkXML {
-		return Metadata{}, errManifest
+		return manifest{}, errManifest
 	}
 	var strs []string
 	var ids []uint32
-	var m Metadata
+	var m manifest
 	elements := 0
 	for off := int(le.Uint16(b[2:])); off+8 <= len(b); {
 		typ, hdr, size := le.Uint16(b[off:]), int(le.Uint16(b[off+2:])), int(le.Uint32(b[off+4:]))
 		if size < 8 || off+size > len(b) || hdr > size {
-			return Metadata{}, errManifest
+			return manifest{}, errManifest
 		}
 		c := b[off : off+size]
 		switch typ {
 		case chunkStringPool:
 			var err error
 			if strs, err = stringPool(c); err != nil {
-				return Metadata{}, err
+				return manifest{}, err
 			}
 		case chunkResourceMap:
 			for i := hdr; i+4 <= size; i += 4 {
@@ -76,19 +103,19 @@ func decodeManifest(b []byte) (Metadata, error) {
 			}
 		case chunkStartElem:
 			if err := attrs(c, hdr, strs, ids, &m, elements == 0); err != nil {
-				return Metadata{}, err
+				return manifest{}, err
 			}
 			elements++
 		}
 		off += size
 	}
 	if m.Package == "" {
-		return Metadata{}, errors.New("apk has no package name")
+		return manifest{}, errors.New("apk has no package name")
 	}
 	return m, nil
 }
 
-func attrs(c []byte, hdr int, strs []string, ids []uint32, m *Metadata, root bool) error {
+func attrs(c []byte, hdr int, strs []string, ids []uint32, m *manifest, root bool) error {
 	le := binary.LittleEndian
 	if len(c) < hdr+20 {
 		return errManifest
@@ -101,6 +128,7 @@ func attrs(c []byte, hdr int, strs []string, ids []uint32, m *Metadata, root boo
 		}
 		return ""
 	}
+	app := str(le.Uint32(ext[4:])) == "application"
 	for i := range count {
 		a := start + i*step
 		if step < 20 || a+20 > len(ext) {
@@ -119,7 +147,18 @@ func attrs(c []byte, hdr int, strs []string, ids []uint32, m *Metadata, root boo
 		if typ == typeIntDec || typ == typeIntHex {
 			num = int32(data)
 		}
+		ref := func(v *androidbinary.String) {
+			if typ == typeReference {
+				v.SetResID(androidbinary.ResID(data))
+			} else {
+				v.SetString(text)
+			}
+		}
 		switch {
+		case app && id == attrLabel:
+			ref(&m.app.Label)
+		case app && id == attrIcon:
+			ref(&m.app.Icon)
 		case !root && id != attrMinSDK && id != attrTargetSDK:
 		case id == attrVersionCode:
 			m.VersionCode = num

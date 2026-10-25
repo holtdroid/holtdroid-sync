@@ -1,10 +1,13 @@
 package apk
 
 import (
+	"archive/zip"
 	"bytes"
 	"image"
 	"image/color"
 	"image/png"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -159,5 +162,46 @@ func TestVector(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestImageWithoutExtension(t *testing.T) {
+	var img bytes.Buffer
+	if err := png.Encode(&img, image.NewNRGBA(image.Rect(0, 0, 48, 48))); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "shrunk.apk")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(f)
+	for name, body := range map[string][]byte{"res/im": img.Bytes(), "res/zz": []byte("neither")} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	z, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer z.Close()
+	r := &iconReader{files: map[string]*zip.File{}}
+	for _, f := range z.File {
+		r.files[f.Name] = f
+	}
+	if got, err := r.image("res/im", nil, false); err != nil || got.Bounds().Dx() != 48 {
+		t.Fatalf("extensionless bitmap: %v", err)
+	}
+	if _, err := r.image("res/zz", nil, false); err == nil {
+		t.Fatal("garbage decoded")
 	}
 }

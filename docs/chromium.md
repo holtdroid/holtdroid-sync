@@ -48,6 +48,7 @@ branch, as the WebView job does. Each build lands under the target as:
 ```
 chromium-{milestone}.apk
 chromium-{milestone}.apk.meta.json
+chromium-{milestone}.apk.icon.png
 ```
 
 The sidecar holds:

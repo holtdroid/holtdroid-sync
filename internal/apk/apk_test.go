@@ -36,7 +36,7 @@ func TestParseRejectsNonAPK(t *testing.T) {
 }
 
 func TestDecodeManifestMatchesAndroidbinary(t *testing.T) {
-	want, _, err := Parse("testdata/helloworld.apk")
+	want, wantIcon, err := Parse("testdata/helloworld.apk")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,8 +45,11 @@ func TestDecodeManifestMatchesAndroidbinary(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Package != want.Package || got.VersionName != want.VersionName || got.VersionCode != want.VersionCode ||
-		got.MinSDK != want.MinSDK || got.TargetSDK != want.TargetSDK {
-		t.Fatalf("fallback %+v, androidbinary %+v", got, want)
+		got.MinSDK != want.MinSDK || got.TargetSDK != want.TargetSDK || got.Label != want.Label || got.Label == "" {
+		t.Fatalf("fallback %+v, androidbinary %+v", got.Metadata, want)
+	}
+	if icon := extractIcon("testdata/helloworld.apk", got.app); (icon == nil) != (wantIcon == nil) {
+		t.Fatalf("fallback icon %d bytes, androidbinary %d", len(icon), len(wantIcon))
 	}
 	for _, raw := range [][]byte{nil, {3, 0, 8, 0}, {3, 0, 8, 0, 100, 0, 0, 0, 1, 0}} {
 		if _, err := decodeManifest(raw); err == nil {

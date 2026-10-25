@@ -97,15 +97,7 @@ func extractIcon(file string, app androidapk.Application) (icon []byte) {
 		if err != nil {
 			continue
 		}
-		var img image.Image
-		switch {
-		case isBitmap(p):
-			img, err = r.bitmap(p)
-		case strings.HasSuffix(p, ".xml"):
-			img, err = r.drawable(p, cfg, true)
-		default:
-			continue
-		}
+		img, err := r.image(p, cfg, true)
 		if err != nil {
 			continue
 		}
@@ -114,6 +106,23 @@ func extractIcon(file string, app androidapk.Application) (icon []byte) {
 		}
 	}
 	return nil
+}
+
+// image reads a bitmap or a drawable XML; shrunk APKs such as Chromium's
+// drop the extensions from resource paths, so those are tried as both.
+func (r *iconReader) image(p string, cfg *androidbinary.ResTableConfig, top bool) (image.Image, error) {
+	switch {
+	case isBitmap(p):
+		return r.bitmap(p)
+	case strings.HasSuffix(p, ".xml"):
+		return r.drawable(p, cfg, top)
+	case path.Ext(p) == "":
+		if img, err := r.bitmap(p); err == nil {
+			return img, nil
+		}
+		return r.drawable(p, cfg, top)
+	}
+	return nil, fmt.Errorf("unsupported icon %s", p)
 }
 
 func isBitmap(p string) bool {
@@ -221,16 +230,7 @@ func (r *iconReader) layer(ref string, cfg *androidbinary.ResTableConfig) any {
 		}
 		switch v := v.(type) {
 		case string:
-			var img image.Image
-			var err error
-			switch {
-			case isBitmap(v):
-				img, err = r.bitmap(v)
-			case strings.HasSuffix(v, ".xml"):
-				img, err = r.drawable(v, cfg, false)
-			default:
-				return nil
-			}
+			img, err := r.image(v, cfg, false)
 			if err != nil {
 				return nil
 			}

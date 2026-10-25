@@ -10,7 +10,7 @@ import (
 	androidapk "github.com/shogo82148/androidbinary/apk"
 )
 
-const ParserVersion = 2
+const ParserVersion = 3
 
 type Metadata struct {
 	Package     string   `json:"package"`
@@ -27,12 +27,14 @@ type Metadata struct {
 func Parse(path string) (Metadata, []byte, error) {
 	pkg, err := androidapk.OpenFile(path)
 	if err != nil {
-		meta, ferr := parseManifest(path)
+		m, ferr := parseManifest(path)
 		if ferr != nil {
 			return Metadata{}, nil, fmt.Errorf("open apk: %w", err)
 		}
-		meta.ABIs, err = abis(path)
-		return meta, nil, err
+		if m.ABIs, err = abis(path); err != nil {
+			return Metadata{}, nil, err
+		}
+		return m.Metadata, extractIcon(path, m.app), nil
 	}
 	defer pkg.Close()
 
