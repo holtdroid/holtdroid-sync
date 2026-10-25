@@ -62,12 +62,32 @@ The `tags` are:
 - `milestone`;
 - `revision` (the snapshot);
 - `version`, `minSdk` and `targetSdk` (from the APK);
+- `requiresSdk`: the Android API level the build actually needs, when a
+  `requirements` rule raises it above `minSdk`;
 - `frontend`: the Canary release's commit, whose DevTools frontend Holtdroid
   serves, because snapshot builds report no revision of their own;
 - `channel`: a comma-separated subset of `stable`, `beta`, `dev` and `canary`.
 
 A build is downloaded again only when its snapshot revision changes. When
-only the channels change, only the sidecar is rewritten. With `prune` (the
+only the channels or `requiresSdk` change, only the sidecar is rewritten.
+
+## Requirements
+
+Every snapshot declares `minSdk` 29 (Android 10), but newer ones don't work
+on older Android. On Holtdroid's redroid images, Chromium 149 and later
+abort when a WebView is created on Android 11, 12 and 13, with
+`libc++ Hardening assertion this->has_value() failed`. Chromium 148 and
+older work, and Android 14 and 15 run every build. `requirements` records
+such breakages, and Holtdroid offers a build only on Android versions at or
+above both `minSdk` and `requiresSdk`:
+
+```yaml
+requirements:          # the default
+  - { from: 149, minSdk: 34 }
+```
+
+Each rule applies to its milestone and every later one, and the highest
+matching `minSdk` wins. Setting `requirements` replaces the default list. With `prune` (the
 default), builds of milestones that are no longer picked are deleted, but
 only after a pass in which Chromium Dash and the bucket answered. The job
 owns everything under its target prefix.
@@ -82,6 +102,8 @@ milestones:
   latest: 6       # newest milestones
   every: 5        # plus every milestone divisible by this (0: none)
   extra: [133]    # plus these
+requirements:
+  - { from: 149, minSdk: 34 }
 interval: 6h
 prune: true
 target:

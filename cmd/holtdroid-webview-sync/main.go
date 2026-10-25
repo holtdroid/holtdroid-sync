@@ -23,19 +23,23 @@ type Config struct {
 		Every  int
 		Extra  []int
 	}
-	Interval time.Duration
-	Prune    bool
-	Target   storage.Config
-	Secrets  struct {
+	// Requirements raise the Android API level of milestones that break on
+	// older Android although their manifest allows it.
+	Requirements []webviewsync.Requirement
+	Interval     time.Duration
+	Prune        bool
+	Target       storage.Config
+	Secrets      struct {
 		OpenBao secrets.OpenBaoConfig
 	}
 }
 
 func defaults() Config {
 	cfg := Config{
-		Interval: 6 * time.Hour,
-		Prune:    true,
-		Target:   storage.Config{Type: "filesystem"},
+		Requirements: []webviewsync.Requirement{{From: 149, MinSDK: 34}},
+		Interval:     6 * time.Hour,
+		Prune:        true,
+		Target:       storage.Config{Type: "filesystem"},
 	}
 	cfg.Milestones.Latest = 6
 	cfg.Milestones.Every = 5
@@ -49,6 +53,11 @@ func (c Config) Validate() error {
 	}
 	if c.Milestones.Latest == 0 && c.Milestones.Every == 0 && len(c.Milestones.Extra) == 0 {
 		errs = append(errs, errors.New("milestones: pick at least one with latest, every or extra"))
+	}
+	for i, r := range c.Requirements {
+		if r.From <= 0 || r.MinSDK <= 0 {
+			errs = append(errs, fmt.Errorf("requirements[%d]: from and minSdk must be positive", i))
+		}
 	}
 	if c.Interval <= 0 {
 		errs = append(errs, errors.New("interval must be positive"))
@@ -90,7 +99,7 @@ func runJob(ctx context.Context, configPath string, once bool) error {
 		return fmt.Errorf("target: %w", err)
 	}
 	sel := webviewsync.Selection{Latest: cfg.Milestones.Latest, Every: cfg.Milestones.Every, Milestones: cfg.Milestones.Extra}
-	sync := webviewsync.New(&http.Client{}, sel, store, cfg.Prune)
+	sync := webviewsync.New(&http.Client{}, sel, cfg.Requirements, store, cfg.Prune)
 	slog.Info("starting", "version", version, "latest", sel.Latest, "every", sel.Every, "extra", sel.Milestones)
 
 	pass := func(ctx context.Context) error {

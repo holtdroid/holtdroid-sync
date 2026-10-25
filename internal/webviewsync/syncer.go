@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -38,6 +39,13 @@ type Selection struct {
 	Milestones []int
 }
 
+// Requirement raises the Android API level builds from a milestone on need,
+// for breakages their manifest doesn't declare.
+type Requirement struct {
+	From   int
+	MinSDK int
+}
+
 type Syncer struct {
 	hc        *http.Client
 	dash      string
@@ -45,15 +53,16 @@ type Syncer struct {
 	platform  string
 	pkg       string
 	sel       Selection
+	reqs      []Requirement
 	store     storage.Store
 	prune     bool
 	log       *slog.Logger
 }
 
-func New(hc *http.Client, sel Selection, store storage.Store, prune bool) *Syncer {
+func New(hc *http.Client, sel Selection, reqs []Requirement, store storage.Store, prune bool) *Syncer {
 	return &Syncer{
 		hc: hc, dash: DashURL, snapshots: SnapshotURL, platform: Platform, pkg: Package,
-		sel: sel, store: store, prune: prune, log: slog.Default().With("component", "syncer"),
+		sel: sel, reqs: reqs, store: store, prune: prune, log: slog.Default().With("component", "syncer"),
 	}
 }
 
@@ -101,11 +110,13 @@ func (s *Syncer) Sync(ctx context.Context) (layout.Stats, error) {
 		key := Key(b.milestone)
 		meta, ok := s.current(ctx, key, have)
 		if ok && meta.Tags["revision"] == strconv.Itoa(b.revision) {
-			if slices.Equal(splitChannels(meta.Tags["channel"]), b.channels) {
+			before := maps.Clone(meta.Tags)
+			setChannels(&meta, b.channels)
+			s.setRequires(&meta, b.milestone)
+			if maps.Equal(before, meta.Tags) {
 				st.Skipped++
 				continue
 			}
-			setChannels(&meta, b.channels)
 			raw, err := meta.Encode()
 			if err == nil {
 				err = layout.PutMeta(ctx, s.store, key, raw)
@@ -305,6 +316,7 @@ func (s *Syncer) copy(ctx context.Context, key string, b build) (int64, error) {
 		},
 	}
 	setChannels(&meta, b.channels)
+	s.setRequires(&meta, b.milestone)
 	return staged.Size, staged.Publish(ctx, s.store, key, meta)
 }
 
@@ -338,11 +350,18 @@ func setChannels(m *layout.Meta, chs []string) {
 	m.Tags["channel"] = strings.Join(chs, ",")
 }
 
-func splitChannels(s string) []string {
-	if s == "" {
-		return nil
+func (s *Syncer) setRequires(m *layout.Meta, milestone int) {
+	sdk := 0
+	for _, r := range s.reqs {
+		if milestone >= r.From {
+			sdk = max(sdk, r.MinSDK)
+		}
 	}
-	return strings.Split(s, ",")
+	if sdk == 0 {
+		delete(m.Tags, "requiresSdk")
+		return
+	}
+	m.Tags["requiresSdk"] = strconv.Itoa(sdk)
 }
 
 func orderChannels(chs []string) []string {

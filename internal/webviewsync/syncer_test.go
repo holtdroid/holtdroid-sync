@@ -159,7 +159,7 @@ func (f *fakeChromium) syncer(t *testing.T, sel Selection, store storage.Store) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(f.srv.Client(), sel, store, true)
+	s := New(f.srv.Client(), sel, []Requirement{{From: 150, MinSDK: 34}, {From: 157, MinSDK: 35}}, store, true)
 	s.dash, s.snapshots, s.pkg = f.srv.URL, f.srv.URL, meta.Package
 	return s
 }
@@ -216,13 +216,27 @@ func TestSync(t *testing.T) {
 		m.Tags["channel"] != "dev,canary" || m.Tags["frontend"] != "hash158" || m.Tags["version"] == "" || m.Tags["minSdk"] == "" {
 		t.Fatalf("meta %+v", m)
 	}
-	if c := readMeta(t, store, "chromium-150.apk").Tags["channel"]; c != "" {
-		t.Fatalf("150 channel %q", c)
+	if tags := readMeta(t, store, "chromium-150.apk").Tags; tags["channel"] != "" || tags["requiresSdk"] != "34" {
+		t.Fatalf("150 tags %v", tags)
+	}
+	if tags := readMeta(t, store, "chromium-145.apk").Tags; tags["requiresSdk"] != "" {
+		t.Fatalf("145 tags %v", tags)
+	}
+	if r := m.Tags["requiresSdk"]; r != "35" {
+		t.Fatalf("158 requiresSdk %q", r)
 	}
 
 	st, err = s.Sync(ctx)
 	if err != nil || st.Copied != 0 || st.Skipped != len(want) || f.downloads != len(want) {
 		t.Fatalf("second pass %+v %v, downloads %d", st, err, f.downloads)
+	}
+
+	s.reqs = []Requirement{{From: 140, MinSDK: 31}}
+	if _, err := s.Sync(ctx); err != nil || f.downloads != len(want) {
+		t.Fatalf("new requirements: %v, downloads %d", err, f.downloads)
+	}
+	if r := readMeta(t, store, "chromium-158.apk").Tags["requiresSdk"]; r != "31" {
+		t.Fatalf("158 requiresSdk after a rule change %q", r)
 	}
 
 	f.set(func(f *fakeChromium) {

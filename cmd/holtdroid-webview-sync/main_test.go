@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/holtdroid/holtdroid-sync/internal/webviewsync"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -50,5 +52,24 @@ func TestValidate(t *testing.T) {
 	}
 	if err := defaults().Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRequirementsConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("requirements:\n  - { from: 150, minSdk: 33 }\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil || len(cfg.Requirements) != 1 || cfg.Requirements[0].From != 150 || cfg.Requirements[0].MinSDK != 33 {
+		t.Fatalf("%+v %v", cfg.Requirements, err)
+	}
+	if d := defaults().Requirements; len(d) != 1 || d[0].From != 149 || d[0].MinSDK != 34 {
+		t.Fatalf("defaults %+v", d)
+	}
+	bad := defaults()
+	bad.Requirements = []webviewsync.Requirement{{From: 0, MinSDK: 34}}
+	if bad.Validate() == nil {
+		t.Fatal("valid")
 	}
 }
