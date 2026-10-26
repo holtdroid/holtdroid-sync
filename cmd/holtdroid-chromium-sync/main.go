@@ -35,7 +35,7 @@ type Config struct {
 
 func defaults() Config {
 	cfg := Config{
-		Requirements: []snapshotsync.Requirement{{From: 149, MinSDK: 34}},
+		Requirements: []snapshotsync.Requirement{{From: 149, MinSDK: 34}, {From: 157, MinSDK: 35}},
 		Interval:     6 * time.Hour,
 		Prune:        true,
 		Target:       storage.Config{Type: "filesystem"},

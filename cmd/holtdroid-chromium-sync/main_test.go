@@ -65,7 +65,7 @@ func TestRequirementsConfig(t *testing.T) {
 	if err != nil || len(cfg.Requirements) != 1 || cfg.Requirements[0].From != 150 || cfg.Requirements[0].MinSDK != 33 {
 		t.Fatalf("%+v %v", cfg.Requirements, err)
 	}
-	if d := defaults().Requirements; len(d) != 1 || d[0].From != 149 || d[0].MinSDK != 34 {
+	if d := defaults().Requirements; len(d) != 2 || d[0].From != 149 || d[0].MinSDK != 34 || d[1].From != 157 || d[1].MinSDK != 35 {
 		t.Fatalf("defaults %+v", d)
 	}
 	bad := defaults()

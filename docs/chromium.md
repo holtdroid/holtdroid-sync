@@ -62,9 +62,17 @@ The sidecar holds:
 | `origin`     | `chromium-snapshots`                              |
 | `tags`       | the same as the [WebView job's](webview.md)       |
 
-`requirements` works as in the WebView job and has the same default
-(`{from: 149, minSdk: 34}`): it sets the `requiresSdk` tag. Holtdroid shows
-tags on builds but doesn't stop a launch on an older Android version.
+`requirements` works as in the WebView job and sets the `requiresSdk` tag.
+The default adds a rule to the WebView job's:
+
+- `{from: 149, minSdk: 34}`: from 149 on, Chromium aborts at startup on
+  Android 11 to 13 (`shared_memory_user_stream_writer.cc`
+  `mapped_region_.IsValid()`);
+- `{from: 157, minSdk: 35}`: from 157 on, Chromium draws only through
+  Vulkan 1.3 features, which only holtdroid-redroid's Android 15 image has.
+
+Holtdroid doesn't offer a build on Android versions below its `minSdk` or
+`requiresSdk`.
 
 A build is downloaded again only when its snapshot revision changes. When
 only the channels, `requiresSdk` or `frontend` change, only the sidecar is
@@ -82,6 +90,7 @@ milestones:
   extra: [133]
 requirements:
   - { from: 149, minSdk: 34 }
+  - { from: 157, minSdk: 35 }
 interval: 6h
 prune: true
 target:
