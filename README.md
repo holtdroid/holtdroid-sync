@@ -1,4 +1,12 @@
-# holtdroid-sync
+<p align="center">
+  <a href="https://holtdroid.github.io/holtdroid/sources/overview/"><img src="https://github.com/holtdroid/.github/raw/main/profile/assets/social-holtdroid-sync.png" alt="Holtdroid Sync — brings APKs into Holtdroid from Slack, S3 and GitHub releases"></a>
+</p>
+
+<p align="center">
+  Part of <a href="https://github.com/holtdroid/holtdroid"><b>Holtdroid</b></a> ·
+  <a href="https://holtdroid.github.io/holtdroid/sources/overview/">Documentation</a> ·
+  <a href="https://github.com/holtdroid">All repositories</a>
+</p>
 
 Sync jobs that bring APKs into [Holtdroid](https://github.com/holtdroid/holtdroid).
 Each job writes Holtdroid's source layout into a folder or an S3 prefix, and
