@@ -26,6 +26,7 @@ x.apk.icon.png    # the launcher icon re-rendered at 256 px, when there is one
 | `holtdroid-webview-sync` | Chromium's x86_64 WebView snapshot builds, one per milestone, for Holtdroid's WebView catalog | [docs/webview.md](docs/webview.md) |
 | `holtdroid-chromium-sync` | Chromium browser builds from the same snapshots, one per milestone, thinned out with age | [docs/chromium.md](docs/chromium.md) |
 | `holtdroid-chromium-builds-sync` | Chromium and WebView builds for x86_64 and arm64 from the releases of [chromium-builds](https://github.com/holtdroid/chromium-builds) | [docs/chromium-builds.md](docs/chromium-builds.md) |
+| `holtdroid-archive-sync` | APKs from public release archives served as directory listings, such as Opera and Firefox | [docs/archive.md](docs/archive.md) |
 
 The jobs are independent of Holtdroid's code and of each other. They share
 only this repository: the APK parser and icon renderer, the folder/S3
@@ -35,7 +36,7 @@ through [shoutrrr](https://github.com/nicholas-fedor/shoutrrr).
 ## Deploying
 
 One image, `ghcr.io/holtdroid/holtdroid-sync` (`linux/amd64`, `linux/arm64`,
-distroless, non-root), holds all jobs as `/usr/local/bin/holtdroid-{slack,s3,github,webview,chromium,chromium-builds}-sync`:
+distroless, non-root), holds all jobs as `/usr/local/bin/holtdroid-{slack,s3,github,webview,chromium,chromium-builds,archive}-sync`:
 
 ```sh
 docker run --rm -v $PWD/config.yaml:/config.yaml ghcr.io/holtdroid/holtdroid-sync holtdroid-github-sync --config /config.yaml --once
@@ -45,7 +46,7 @@ One Helm chart, `deploy/helm/holtdroid-sync` (tagged releases:
 `oci://ghcr.io/holtdroid/charts/holtdroid-sync`), runs one job per release:
 
 ```yaml
-job: github # slack | s3 | github | webview | chromium | chromium-builds
+job: github # slack | s3 | github | webview | chromium | chromium-builds | archive
 existingSecret: holtdroid-github-sync # env vars for env: references in config
 config: # the job's config.yaml, see its docs
   repos:
