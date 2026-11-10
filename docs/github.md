@@ -12,6 +12,8 @@ For every configured repository, the job walks the releases newest first:
 
 - drafts are skipped;
 - pre-releases are skipped unless `prereleases: true`;
+- with `releaseName`, a regular expression, releases whose name doesn't match
+  are skipped, for projects that publish other channels as normal releases;
 - only the newest `releases` releases count (`0` = all);
 - the `include` rules pick assets by `{tag}/{asset name}`;
 - only `*.apk` assets are copied.
@@ -95,6 +97,7 @@ repos:
   - repo: WebView-CG/CanIAndroidWebView
     releases: 5                 # newest releases to keep; 0 = all (default)
     prereleases: false
+    releaseName: "^Release "    # optional
     include: ["!*-debug.apk"]
 interval: 15m
 prune: true

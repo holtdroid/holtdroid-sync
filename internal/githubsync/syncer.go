@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -25,6 +26,7 @@ type Repo struct {
 	Rules       rules.Rules
 	Prereleases bool
 	Releases    int
+	ReleaseName *regexp.Regexp
 }
 
 func (r Repo) String() string { return r.Owner + "/" + r.Name }
@@ -114,6 +116,9 @@ func (s *Syncer) list(ctx context.Context, repo Repo) (map[string]asset, error) 
 		}
 		for _, release := range releases {
 			if release.GetDraft() || (release.GetPrerelease() && !repo.Prereleases) {
+				continue
+			}
+			if repo.ReleaseName != nil && !repo.ReleaseName.MatchString(release.GetName()) {
 				continue
 			}
 			if repo.Releases > 0 && taken == repo.Releases {

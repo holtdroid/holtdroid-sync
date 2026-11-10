@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -299,6 +300,25 @@ func TestFailedListingNeverPrunes(t *testing.T) {
 	st, err := s.Sync(context.Background())
 	if err == nil || st.Pruned != 0 || len(keys(t, store)) != 6 {
 		t.Fatalf("pass with a failed listing pruned: %+v, %v, %v", st, err, keys(t, store))
+	}
+}
+
+func TestReleaseName(t *testing.T) {
+	f := newFakeGitHub(t)
+	store := newStore(t)
+	f.release("acme/app", "v1", false, "stable.apk")
+	f.release("acme/app", "v2", false, "nightly.apk")
+	f.mu.Lock()
+	f.releases["acme/app"][0].Name = "Nightly v2"
+	f.releases["acme/app"][1].Name = "Release v1"
+	f.mu.Unlock()
+	r := repo(t, "acme/app", 1, false)
+	r.ReleaseName = regexp.MustCompile("^Release ")
+	if _, err := New(f.client(), []Repo{r}, store, true).Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := keys(t, store), []string{"acme/app/v1/stable.apk", "acme/app/v1/stable.apk.icon.png", "acme/app/v1/stable.apk.meta.json"}; !slices.Equal(got, want) {
+		t.Fatalf("copied %v", got)
 	}
 }
 

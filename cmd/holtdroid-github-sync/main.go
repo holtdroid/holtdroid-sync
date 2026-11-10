@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type RepoConfig struct {
 	Include     []string
 	Prereleases bool
 	Releases    int
+	ReleaseName string
 }
 
 type Config struct {
@@ -66,6 +68,9 @@ func (c Config) Validate() error {
 		seen[strings.ToLower(r.Repo)] = true
 		if _, err := rules.Parse(r.Include); err != nil {
 			errs = append(errs, fmt.Errorf("repos[%d].include: %w", i, err))
+		}
+		if _, err := regexp.Compile(r.ReleaseName); err != nil {
+			errs = append(errs, fmt.Errorf("repos[%d].releaseName: %w", i, err))
 		}
 		if r.Releases < 0 {
 			errs = append(errs, fmt.Errorf("repos[%d].releases must not be negative", i))
@@ -163,7 +168,11 @@ func repos(cfg Config) []githubsync.Repo {
 	for _, r := range cfg.Repos {
 		owner, name, _ := splitRepo(r.Repo)
 		include, _ := rules.Parse(r.Include)
-		out = append(out, githubsync.Repo{Owner: owner, Name: name, Rules: include, Prereleases: r.Prereleases, Releases: r.Releases})
+		repo := githubsync.Repo{Owner: owner, Name: name, Rules: include, Prereleases: r.Prereleases, Releases: r.Releases}
+		if r.ReleaseName != "" {
+			repo.ReleaseName, _ = regexp.Compile(r.ReleaseName)
+		}
+		out = append(out, repo)
 	}
 	return out
 }
