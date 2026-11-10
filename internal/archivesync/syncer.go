@@ -4,6 +4,7 @@ package archivesync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -92,6 +93,9 @@ func (s *Syncer) Sync(ctx context.Context) (layout.Stats, error) {
 	for key, f := range want {
 		if t, ok := have[key]; !layout.Outdated(t, ok, f.size, f.modified) {
 			st.Skipped++
+			if err := s.refresh(ctx, key, f); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", key, err))
+			}
 			continue
 		}
 		if err := s.copy(ctx, key, f); err != nil {
@@ -268,11 +272,31 @@ func (s *Syncer) copy(ctx context.Context, key string, f file) error {
 	}
 	if staged.App != nil && staged.App.VersionName != "" {
 		meta.Tags["version"] = staged.App.VersionName
-		if major, _, ok := strings.Cut(staged.App.VersionName, "."); ok && f.archive.Title != "" {
-			meta.Title = f.archive.Title + " " + major
-		}
 	}
 	return staged.Publish(ctx, s.store, key, meta)
+}
+
+// refresh rewrites the title of a copy when the config's title changed.
+func (s *Syncer) refresh(ctx context.Context, key string, f file) error {
+	rc, _, err := s.store.Get(ctx, key+layout.MetaSuffix)
+	if err != nil {
+		return fmt.Errorf("read meta: %w", err)
+	}
+	var m layout.Meta
+	err = json.NewDecoder(io.LimitReader(rc, 1<<20)).Decode(&m)
+	_ = rc.Close()
+	if err != nil {
+		return fmt.Errorf("read meta: %w", err)
+	}
+	if m.Title == f.archive.Title {
+		return nil
+	}
+	m.Title = f.archive.Title
+	raw, err := m.Encode()
+	if err != nil {
+		return err
+	}
+	return layout.PutMeta(ctx, s.store, key, raw)
 }
 
 func parent(u *url.URL) string {

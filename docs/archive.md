@@ -25,7 +25,7 @@ Each APK lands under the target as `{name}/{path below url}` with a sidecar:
 
 | Field        | Value                                                     |
 | ------------ | --------------------------------------------------------- |
-| `title`      | `title` and the major version of the APK                  |
+| `title`      | `title`                                                   |
 | `note`       | the file name                                             |
 | `uploadedAt` | the file's `Last-Modified`                                |
 | `link`       | the directory it came from                                |

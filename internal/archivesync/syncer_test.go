@@ -149,13 +149,40 @@ func TestNewestFilePerVersionDirectory(t *testing.T) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatal(err)
 	}
-	if !m.UploadedAt.Equal(f.modified) || m.Origin != "archive" || !strings.HasPrefix(m.Title, "Opera") || !strings.HasSuffix(m.Link, "/android/10300/") {
+	if !m.UploadedAt.Equal(f.modified) || m.Origin != "archive" || m.Title != "Opera" || !strings.HasSuffix(m.Link, "/android/10300/") {
 		t.Fatalf("meta %+v", m)
 	}
 
 	before := f.downloads
 	if st, err := s.Sync(context.Background()); err != nil || st.Copied != 0 || f.downloads != before {
 		t.Fatalf("second pass copied %d (%d downloads): %v", st.Copied, f.downloads-before, err)
+	}
+}
+
+func TestTitleChangeRewritesSidecar(t *testing.T) {
+	f := newFake(t)
+	f.operaPages()
+	store := newStore(t)
+	a := f.archive(t, Archive{Name: "opera", Title: "Opera 103", VersionDir: regexp.MustCompile(`^\d+$`), FileVersion: operaVersion, Versions: 1}, "/android/", "*_arm8_*.apk")
+	if _, err := New(f.srv.Client(), "ua", []Archive{a}, store, true).Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before := f.downloads
+	a.Title = "Opera"
+	if _, err := New(f.srv.Client(), "ua", []Archive{a}, store, true).Sync(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	rc, _, err := store.Get(context.Background(), "opera/10300/Opera_103_3_5234_91185_Generic_Opera_arm8_LZMA.apk"+layout.MetaSuffix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rc.Close()
+	var m layout.Meta
+	if err := json.NewDecoder(rc).Decode(&m); err != nil {
+		t.Fatal(err)
+	}
+	if m.Title != "Opera" || f.downloads != before {
+		t.Fatalf("title %q, %d new downloads", m.Title, f.downloads-before)
 	}
 }
 
