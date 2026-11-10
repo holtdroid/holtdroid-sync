@@ -59,10 +59,6 @@ archives:
     title: Opera GX
     url: https://get.opera.com/pub/opera/android/opera-gx/
     fileVersion: 'opera-gx-([0-9.]+)\.apk'
-  - name: opera-mini
-    title: Opera Mini
-    url: https://get.opera.com/pub/opera/android/mini/
-    versionDir: '^\d+\.\d+\.\d+\.\d+$'
   - name: firefox
     title: Firefox
     url: https://archive.mozilla.org/pub/fenix/releases/
