@@ -9,7 +9,7 @@ file, read it too (machine-specific, not committed).
 Sync jobs that copy APKs from Slack, S3 buckets, GitHub releases and
 Chromium's WebView and browser snapshots into a
 [Holtdroid](https://github.com/holtdroid/holtdroid) folder or S3 source. See
-`README.md` and `docs/{slack,s3,github,webview,chromium}.md`.
+`README.md` and `docs/{slack,s3,github,webview,chromium,chromium-builds}.md`.
 
 Interfaces with Holtdroid, all defined in Holtdroid's `design/contracts.md`
 ("Artifact sources"):
@@ -25,7 +25,7 @@ Change them together with Holtdroid. Never depend on Holtdroid's Go module.
 ## Layout
 
 ```
-cmd/holtdroid-{slack,s3,github,webview,chromium}-sync/   one binary per job: config, wiring, loop
+cmd/holtdroid-{slack,s3,github,webview,chromium,chromium-builds}-sync/   one binary per job: config, wiring, loop
 internal/layout/       source layout: Meta, staging an APK (parse + icon), publishing with sidecars, removal, launch links
 internal/announce/     new build announcements through shoutrrr
 internal/run/          shared main: cobra flags, logging, signals, polling loop
@@ -36,6 +36,7 @@ internal/signin/       login links through shoutrrr
 internal/broker/       /healthz, /status, /credentials (ECS format)
 internal/githubsync/   GitHub releases: list, filter, copy, prune
 internal/snapshotsync/ Chromium snapshots (WebView, browser): milestone selection from Chromium Dash, ranged zip extraction, prune
+internal/chromiumbuilds/ releases of holtdroid/chromium-builds: all four APKs present, release date from the notes, channels, prune
 internal/apk/ rules/ storage/ secrets/ config/   copies of Holtdroid's packages
 deploy/helm/holtdroid-sync/   one chart, `job` picks the binary
 docs/                  per-job documentation

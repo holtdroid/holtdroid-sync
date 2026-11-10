@@ -1,4 +1,4 @@
-# Which sync job runs: slack, s3, github, webview or chromium. Required.
+# Which sync job runs: slack, s3, github, webview, chromium or chromium-builds. Required.
 job: ""
 
 image:
